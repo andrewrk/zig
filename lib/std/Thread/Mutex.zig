@@ -225,3 +225,6 @@ const MutexImpl = struct {
     }
 };
 
+test "Mutex" {
+    return error.TODO;
+}

@@ -274,3 +274,6 @@ const RwLockImpl = struct {
     }
 };
 
+test "RwLock" {
+    return error.TODO;
+}

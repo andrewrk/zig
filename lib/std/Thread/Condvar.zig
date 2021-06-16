@@ -103,3 +103,6 @@ const CondvarImpl = struct {
     }
 };
 
+test "Condvar" {
+    return error.TODO;
+}

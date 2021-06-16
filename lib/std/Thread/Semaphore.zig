@@ -212,3 +212,6 @@ const SemaphoreImpl = struct {
     }
 };
 
+test "Semaphore" {
+    return error.TODO;
+}
