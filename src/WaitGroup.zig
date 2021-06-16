@@ -6,56 +6,47 @@
 const std = @import("std");
 const WaitGroup = @This();
 
-lock: std.Thread.Mutex = .{},
 counter: usize = 0,
-event: std.Thread.ResetEvent,
+mutex: std.Thread.Mutex = .{},
+cond: std.Thread.Condvar = .{},
 
 pub fn init(self: *WaitGroup) !void {
-    self.* = .{
-        .lock = .{},
-        .counter = 0,
-        .event = undefined,
-    };
-    try self.event.init();
+    self.* = .{};
 }
 
 pub fn deinit(self: *WaitGroup) void {
-    self.event.deinit();
     self.* = undefined;
 }
 
 pub fn start(self: *WaitGroup) void {
-    const held = self.lock.acquire();
+    const held = self.mutex.acquire();
     defer held.release();
 
     self.counter += 1;
 }
 
 pub fn finish(self: *WaitGroup) void {
-    const held = self.lock.acquire();
+    const held = self.mutex.acquire();
     defer held.release();
 
     self.counter -= 1;
-
     if (self.counter == 0) {
-        self.event.set();
+        self.cond.signal();
     }
 }
 
 pub fn wait(self: *WaitGroup) void {
-    while (true) {
-        const held = self.lock.acquire();
+    var held = self.mutex.acquire();
+    defer held.release();
 
-        if (self.counter == 0) {
-            held.release();
-            return;
-        }
-
-        held.release();
-        self.event.wait();
+    while (self.counter != 0) {
+        self.cond.wait(&held);
     }
 }
 
 pub fn reset(self: *WaitGroup) void {
-    self.event.reset();
+    const held = self.mutex.acquire();
+    defer held.release();
+
+    self.counter = 0;
 }

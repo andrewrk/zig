@@ -251,6 +251,90 @@ pub const Timer = struct {
     }
 };
 
+/// Returns the current timestamp using the system's high-precision, monotonically increasing, timestamp.
+pub fn now() u64 {
+    const MonotonicTimestamp = struct {
+        var timer: Timer = undefined;
+        var once = std.once(init_timer);
+
+        fn init_timer() void {
+            timer = Timer.start() catch unreachable;
+        }
+
+        fn measure() u64 {
+            once.call();
+            return timer.read();
+        }
+    };
+
+    const MonotonicProperty = struct {
+        var mutex = std.Thread.Mutex{};
+        var last_value = std.atomic.Atomic(u64).init(0);
+
+        // https://doc.rust-lang.org/src/std/time.rs.html#220-260
+        const is_already_monotonic = switch (std.Target.current.os.tag) {
+            .windows => false,
+            .openbsd => std.Target.current.cpu.arch != .x86_64,
+            .linux => switch (std.Target.current.cpu.arch) {
+                .aarch64, .aarch64_be, .aarch64_32, .s390x => false,
+                else => true,
+            },
+            else => true,
+        };
+
+        fn apply(value: u64) u64 {
+            if (is_already_monotonic) {
+                return value;
+            }
+
+            if (@sizeOf(usize) >= @sizeOf(u64)) {
+                return applyLockFree(value);
+            }
+
+            self.mutex.acquire();
+            defer self.mutex.release();
+
+            const last = last_value.loadUnchecked();
+            if (value <= last) {
+                return last;
+            }
+
+            last_value.storeUnchecked(value);
+            return value;
+        } 
+
+        fn applyLockFree(value: u64) u64 {
+            var last = last_value.load(.Monotonic);
+            while (true) {
+                if (value <= last) {
+                    return last;
+                }
+
+                last = last_value.tryCompareAndSwap(
+                    last,
+                    value,
+                    .Monotonic,
+                    .Monotonic,
+                ) orelse return value;
+            }
+        }
+    };
+
+    var current_time = MonotonicTimestamp.measure();
+    current_time = MonotonicProperty.apply(current_time);
+    return current_time; 
+}
+
+test "now" {
+    var i: usize = 10;
+    while (i > 0) : (i -= 1) {
+        const before = now();
+        sleep(1);
+        const after = now();
+        try testing.expect(after >= before);
+    }
+}
+
 // Calculate (a * b) / c without risk of overflowing too early because of the
 // multiplication.
 fn safeMulDiv(a: u64, b: u64, c: u64) u64 {
