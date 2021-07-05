@@ -5,14 +5,17 @@
 // and substantial portions of the software.
 
 const std = @import("../std.zig");
+const target = std.Target.current;
 const Atomic = std.atomic.Atomic;
 const Futex = std.Thread.Futex;
 
 const Mutex = @This();
-const Impl = if (std.builtin.single_threaded and std.debug.runtime_safety) 
-    SafeSerialMutexImpl
-else if (std.builtin.single_threaded)
+const Impl = if (std.builtin.single_threaded and !std.debug.runtime_safety) 
     FastSerialMutexImpl
+else if (std.builtin.single_threaded)
+    SafeSerialMutexImpl
+else if (target.cpu.arch.isX86())
+    X86MutexImpl
 else 
     MutexImpl;
 
@@ -33,7 +36,7 @@ pub fn timedAcquire(self: *Mutex, timeout_ns: u64) error{TimedOut}!Held {
     return Held{ .impl = &self.impl };
 }
 
-pub const Held = struct {
+pub const Held = extern struct {
     impl: *Impl,
     
     pub fn release(self: Held) void {
@@ -41,7 +44,7 @@ pub const Held = struct {
     }
 };
 
-const FastSerialMutexImpl = struct {
+const FastSerialMutexImpl = extern struct {
     fn tryAcquire(self: *Impl) bool {
         return true;
     }
@@ -59,7 +62,7 @@ const FastSerialMutexImpl = struct {
     }
 };
 
-const SafeSerialMutexImpl = struct {
+const SafeSerialMutexImpl = extern struct {
     is_acquired: bool = false,
 
     fn tryAcquire(self: *Impl) bool {
@@ -85,14 +88,130 @@ const SafeSerialMutexImpl = struct {
     }
 };
 
-const MutexImpl = struct {
+const X86MutexImpl = extern struct {
+    state: extern union {
+        dword: Atomic(u32),
+        byte: extern struct {
+            locked: Atomic(u8),
+            contended: Atomic(u8),
+        },
+    } = .{ .dword = Atomic(u32).init(UNLOCKED) },
+
+    const UNLOCKED = 0;
+    const LOCKED = 1 << 0;
+    const CONTENDED = 1 << 8;
+
+    fn tryAcquire(self: *Impl) callconv(.Inline) bool {
+        const locked = self.state.byte.locked.swap(LOCKED, .Acquire);
+        return locked == UNLOCKED;
+    }
+
+    fn acquire(self: *Impl) void {
+        if (self.tryAcquire()) return;
+        return self.acquireSlow(null) catch unreachable;
+    }
+
+    fn timedAcquire(self: *Impl, timeout_ns: u64) error{TimedOut}!void {
+        if (self.tryAcquire()) return;
+        return self.acquireSlow(timeout_ns);
+    }
+
+    fn acquireSlow(self: *Impl, maybe_timeout_ns: ?u64) error{TimedOut}!void {
+        @setCold(true);
+
+        var spin: u8 = 100;
+        while (spin > 0) : (spin -= 1) {
+            std.atomic.spinLoopHint();
+
+            const state = self.state.load(.Monotonic);
+            if (state & CONTENDED != 0) {
+                break;
+            }
+
+            if (state & LOCKED != 0) continue;
+            if (self.tryAcquire()) {
+                return;
+            }
+        }
+
+        // create a deadline in which the timeout actually expires
+        const maybe_deadline = blk: {
+            const timeout_ns = maybe_timeout_ns orelse break :blk null;
+            break :blk std.time.now() + timeout_ns;
+        };
+
+        while (true) {
+            const state = self.state.load(.Monotonic);
+            if (state != CONTENDED | LOCKED) {
+                state = self.state.swap(CONTENDED | LOCKED, .Acquire);
+                if (state & LOCKED == 0) {
+                    return;
+                }
+            }
+
+            try Futex.wait(&self.state, CONTENDED | LOCKED, blk: {
+                const deadline = maybe_deadline orelse break :blk null;
+                const timestamp = std.time.now();
+                if (timestamp >= deadline) return error.TimedOut;
+                break :blk deadline - timestamp;
+            });
+        }
+    }
+
+    fn release(self: *Impl) void {
+        self.byte.locked.store(UNLOCKED, .Release);
+
+        // shouldn't be reordered before the byte store above
+        // since they technically have the same address
+        const state = self.state.load(.Monotonic);
+        if (state == CONTENDED) {
+            self.releaseSlow();
+        }
+    }
+
+    fn releaseSlow(self: *Impl) void {
+        @setCold(true);
+
+        // If it's no longer CONTENDED, its either:
+        // - UNLOCKED: 
+        // Another releaseSlow() thread already completed the CAS
+        //
+        // - LOCKED: 
+        // Another releaseSlow() completed, then another thread acquire()'d.
+        // Let them be the one to do the wake-up instead.
+        //
+        // - LOCKED | CONTENDED: 
+        // A contended (or previously contended) thread updated the state
+        // and either acquired the lock or went back to sleep.
+        // If they wen't back to sleep, that means theres another thread which acquired()'d
+        // so we don't have to do the wake-up since they would wake to an already locked Mutex.
+        // Again, let the acquire()'d thread be the one to do the wake-up instead.
+        if (self.state.compareAndSwap(
+            CONTENDED,
+            UNLOCKED,
+            .Monotonic,
+            .Monotonic,
+        )) |updated| {
+            return;
+        }
+
+        const num_waiters = 1;
+        Futex.wake(&self.state, num_waiters);
+    }
+};
+
+const MutexImpl = extern struct {
     state: Atomic(u32) = Atomic(u32).init(UNLOCKED),
 
     const UNLOCKED: u32 = 0;
     const LOCKED: u32 = 1;
     const CONTENDED: u32 = 2;
+    
+    fn init() Impl {
+        return .{};
+    }
 
-    fn tryAcquire(self: *Impl) bool {
+    fn tryAcquire(self: *Impl) callconv(.Inline) bool {
         return self.state.compareAndSwap(
             UNLOCKED,
             LOCKED,
@@ -122,12 +241,6 @@ const MutexImpl = struct {
 
     fn acquireSlow(self: *Impl, maybe_timeout_ns: ?u64) error{TimedOut}!void {
         @setCold(true);
-        
-        // true if the cpu's atomic swap instruction should be preferred
-        const has_fast_swap = blk: {
-            const arch = std.Target.current.cpu.arch;
-            break :blk arch.isX86() or arch.isRISCV();
-        };
 
         // create a deadline in which the timeout actually expires
         const maybe_deadline = blk: {
@@ -135,9 +248,9 @@ const MutexImpl = struct {
             break :blk std.time.now() + timeout_ns;
         };
 
+        var spin: u8 = 10;
         var acquire_state = LOCKED;
         var state = self.state.load(.Monotonic);
-        var spin: u8 = if (has_fast_swap) 100 else 10;
 
         while (true) {
             // Try to lock the Mutex if its unlocked.
@@ -159,7 +272,7 @@ const MutexImpl = struct {
                 continue;
             }
 
-            if (state != CONTENDED) uncontended: {
+            if (state != CONTENDED) {
                 // If there's no pending threads, try to spin on the Mutex a few times.
                 // This makes the throughput close to a spinlock when under micro-contention.
                 if (spin > 0) {
@@ -167,14 +280,6 @@ const MutexImpl = struct {
                     std.atomic.spinLoopHint();
                     state = self.state.load(.Monotonic);
                     continue;
-                }
-
-                // Indicate that there will be a waiting thread by updating to CONTENDED.
-                // Acquire barrier as this swap could also possibly lock the Mutex.
-                if (has_fast_swap) {
-                    state = self.state.swap(CONTENDED, .Acquire);
-                    if (state == UNLOCKED) return;
-                    break :uncontended;
                 }
 
                 // For other platforms, mark the Mutex as CONTENDED if it's not already.
@@ -197,8 +302,9 @@ const MutexImpl = struct {
                 break :blk deadline - timestamp;
             });
 
-            state = self.state.load(.Monotonic);
+            spin = 10;
             acquire_state = CONTENDED;
+            state = self.state.load(.Monotonic);
         }
     }
 
