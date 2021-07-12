@@ -436,30 +436,6 @@ const AUnion = union {
     Two: void,
 };
 
-test "@typeName" {
-    const Struct = struct {};
-    const Union = union {
-        unused: u8,
-    };
-    const Enum = enum {
-        Unused,
-    };
-    comptime {
-        try expect(mem.eql(u8, @typeName(i64), "i64"));
-        try expect(mem.eql(u8, @typeName(*usize), "*usize"));
-        // https://github.com/ziglang/zig/issues/675
-        try expect(mem.eql(u8, "behavior.misc.TypeFromFn(u8)", @typeName(TypeFromFn(u8))));
-        try expect(mem.eql(u8, @typeName(Struct), "Struct"));
-        try expect(mem.eql(u8, @typeName(Union), "Union"));
-        try expect(mem.eql(u8, @typeName(Enum), "Enum"));
-    }
-}
-
-fn TypeFromFn(comptime T: type) type {
-    _ = T;
-    return struct {};
-}
-
 test "double implicit cast in same expression" {
     var x = @as(i32, @as(u16, nine()));
     try expect(x == 9);

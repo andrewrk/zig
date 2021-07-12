@@ -3432,7 +3432,7 @@ static Stage1ZirInst *astgen_merge_err_sets(Stage1AstGen *ag, Scope *scope, AstN
 
     // TODO only pass type_name when the || operator is the top level AST node in the var decl expr
     Buf bare_name = BUF_INIT;
-    Buf *type_name = get_anon_type_name(ag->codegen, ag->exec, "error", scope, node, &bare_name);
+    Buf *type_name = get_anon_type_name(ag->codegen, ag->exec, "error", scope, node, &bare_name, nullptr);
 
     return ir_build_merge_err_sets(ag, scope, node, op1, op2, type_name);
 }
@@ -7510,42 +7510,73 @@ static bool render_instance_name_recursive(CodeGen *codegen, Buf *name, Scope *o
 }
 
 Buf *get_anon_type_name(CodeGen *codegen, Stage1Zir *exec, const char *kind_name,
-        Scope *scope, AstNode *source_node, Buf *out_bare_name)
+        Scope *scope, AstNode *source_node, Buf *out_bare_name, ResultLoc *result_loc)
 {
-    if (exec != nullptr && exec->name) {
-        ZigType *import = get_scope_import(scope);
-        Buf *namespace_name = buf_alloc();
-        append_namespace_qualification(codegen, namespace_name, import);
-        buf_append_buf(namespace_name, exec->name);
-        buf_init_from_buf(out_bare_name, exec->name);
-        return namespace_name;
-    } else if (exec != nullptr && exec->name_fn != nullptr) {
-        Buf *name = buf_alloc();
-        buf_append_buf(name, &exec->name_fn->symbol_name);
-        buf_appendf(name, "(");
-        render_instance_name_recursive(codegen, name, &exec->name_fn->fndef_scope->base, exec->begin_scope);
-        buf_appendf(name, ")");
-        buf_init_from_buf(out_bare_name, name);
-        return name;
-    } else {
-        ZigType *import = get_scope_import(scope);
-        Buf *namespace_name = buf_alloc();
-        append_namespace_qualification(codegen, namespace_name, import);
-        RootStruct *root_struct = source_node->owner->data.structure.root_struct;
-        TokenLoc tok_loc = root_struct->token_locs[source_node->main_token];
-        buf_appendf(namespace_name, "%s:%u:%u", kind_name,
-                tok_loc.line + 1, tok_loc.column + 1);
-        buf_init_from_buf(out_bare_name, namespace_name);
-        return namespace_name;
+    // See https://ziglang.org/documentation/master/#Struct-Naming .
+    bool force_generic = false;
+    if (result_loc != nullptr
+        && result_loc->source_instruction != nullptr
+        && result_loc->source_instruction->source_node != nullptr
+    ) {
+        switch (result_loc->source_instruction->source_node->type) {
+            case NodeTypeVariableDeclaration: {
+                    ZigType *import = get_scope_import(scope);
+                    Buf *name = buf_alloc();
+                    append_namespace_qualification(codegen, name, import);
+                    const auto &basename = result_loc->source_instruction->source_node->data.variable_declaration.symbol;
+                    buf_append_buf(name, basename);
+                    buf_init_from_buf(out_bare_name, basename);
+                    return name;
+                }
+            case NodeTypeFnCallExpr:
+            case NodeTypeStructValueField:
+                force_generic = true;
+                break;
+            default:
+                break;
+        }
     }
+
+    if (!force_generic) {
+        if (exec != nullptr && exec->name != nullptr) {
+            ZigType *import = get_scope_import(scope);
+            Buf *namespace_name = buf_alloc();
+            append_namespace_qualification(codegen, namespace_name, import);
+            buf_append_buf(namespace_name, exec->name);
+            buf_init_from_buf(out_bare_name, exec->name);
+            return namespace_name;
+        }
+        if (exec != nullptr && exec->name_fn != nullptr) {
+            Buf *name = buf_alloc();
+            buf_append_buf(name, &exec->name_fn->symbol_name);
+            buf_appendf(name, "(");
+            render_instance_name_recursive(codegen, name, &exec->name_fn->fndef_scope->base, exec->begin_scope);
+            buf_appendf(name, ")");
+            buf_init_from_buf(out_bare_name, name);
+            return name;
+        }
+    }
+
+    ZigType *import = get_scope_import(scope);
+    Buf *namespace_name = buf_alloc();
+    append_namespace_qualification(codegen, namespace_name, import);
+    RootStruct *root_struct = source_node->owner->data.structure.root_struct;
+    TokenLoc tok_loc = root_struct->token_locs[source_node->main_token];
+    buf_appendf(namespace_name, "%s:%u:%u", kind_name,
+            tok_loc.line + 1, tok_loc.column + 1);
+    buf_init_from_buf(out_bare_name, namespace_name);
+    return namespace_name;
 }
 
-static Stage1ZirInst *astgen_container_decl(Stage1AstGen *ag, Scope *parent_scope, AstNode *node) {
+static Stage1ZirInst *astgen_container_decl(Stage1AstGen *ag, Scope *parent_scope,
+        AstNode *node, ResultLoc *result_loc)
+{
     assert(node->type == NodeTypeContainerDecl);
 
     ContainerKind kind = node->data.container_decl.kind;
     Buf *bare_name = buf_alloc();
-    Buf *name = get_anon_type_name(ag->codegen, ag->exec, container_string(kind), parent_scope, node, bare_name);
+    Buf *name = get_anon_type_name(ag->codegen,
+        ag->exec, container_string(kind), parent_scope, node, bare_name, result_loc);
 
     ContainerLayout layout = node->data.container_decl.layout;
     ZigType *container_type = get_partial_container_type(ag->codegen, parent_scope,
@@ -7575,7 +7606,7 @@ static Stage1ZirInst *astgen_err_set_decl(Stage1AstGen *ag, Scope *parent_scope,
     uint32_t err_count = node->data.err_set_decl.decls.length;
 
     Buf bare_name = BUF_INIT;
-    Buf *type_name = get_anon_type_name(ag->codegen, ag->exec, "error", parent_scope, node, &bare_name);
+    Buf *type_name = get_anon_type_name(ag->codegen, ag->exec, "error", parent_scope, node, &bare_name, nullptr);
     ZigType *err_set_type = new_type_table_entry(ZigTypeIdErrorSet);
     buf_init_from_buf(&err_set_type->name, type_name);
     err_set_type->data.error_set.err_count = err_count;
@@ -7885,7 +7916,7 @@ static Stage1ZirInst *astgen_node_raw(Stage1AstGen *ag, AstNode *node, Scope *sc
         case NodeTypeCatchExpr:
             return astgen_catch(ag, scope, node, lval, result_loc);
         case NodeTypeContainerDecl:
-            return ir_lval_wrap(ag, scope, astgen_container_decl(ag, scope, node), lval, result_loc);
+            return ir_lval_wrap(ag, scope, astgen_container_decl(ag, scope, node, result_loc), lval, result_loc);
         case NodeTypeFnProto:
             return ir_lval_wrap(ag, scope, astgen_fn_proto(ag, scope, node), lval, result_loc);
         case NodeTypeErrorSetDecl:

@@ -10283,7 +10283,7 @@ static Stage1AirInst *ir_analyze_tuple_cat(IrAnalyze *ira, Scope *scope, AstNode
 
     Buf *bare_name = buf_alloc();
     Buf *name = get_anon_type_name(ira->codegen, nullptr, container_string(ContainerKindStruct),
-            scope, source_node, bare_name);
+            scope, source_node, bare_name, nullptr);
     ZigType *new_type = get_partial_container_type(ira->codegen, scope,
         ContainerKindStruct, source_node, buf_ptr(name), bare_name, ContainerLayoutAuto);
     new_type->data.structure.special = StructSpecialInferredTuple;
@@ -10615,7 +10615,7 @@ static Stage1AirInst *ir_analyze_tuple_mult(IrAnalyze *ira, Scope *scope, AstNod
 
     Buf *bare_name = buf_alloc();
     Buf *name = get_anon_type_name(ira->codegen, nullptr, container_string(ContainerKindStruct),
-        scope, source_node, bare_name);
+        scope, source_node, bare_name, nullptr);
     ZigType *new_type = get_partial_container_type(ira->codegen, scope,
         ContainerKindStruct, source_node, buf_ptr(name), bare_name, ContainerLayoutAuto);
     new_type->data.structure.special = StructSpecialInferredTuple;
@@ -12135,7 +12135,7 @@ static Stage1AirInst *ir_analyze_instruction_resolve_result(IrAnalyze *ira, Stag
         if (implicit_elem_type == ira->codegen->builtin_types.entry_anytype) {
             Buf *bare_name = buf_alloc();
             Buf *name = get_anon_type_name(ira->codegen, nullptr, container_string(ContainerKindStruct),
-                    instruction->base.scope, instruction->base.source_node, bare_name);
+                    instruction->base.scope, instruction->base.source_node, bare_name, nullptr);
 
             StructSpecial struct_special = StructSpecialInferredStruct;
             if (instruction->base.source_node->type == NodeTypeContainerInitExpr &&
@@ -18602,7 +18602,7 @@ static ZigType *type_info_to_type(IrAnalyze *ira, Scope *scope, AstNode *source_
 
             Buf *bare_name = buf_alloc();
             Buf *full_name = get_anon_type_name(ira->codegen,
-                ira->zir, "opaque", scope, source_node, bare_name);
+                ira->zir, "opaque", scope, source_node, bare_name, nullptr);
             return get_opaque_type(ira->codegen,
                 scope, source_node, buf_ptr(full_name), bare_name);
         }
@@ -18649,7 +18649,8 @@ static ZigType *type_info_to_type(IrAnalyze *ira, Scope *scope, AstNode *source_
             assert(is_slice(slice->type));
             ZigType *err_set_type = new_type_table_entry(ZigTypeIdErrorSet);
             Buf bare_name = BUF_INIT;
-            buf_init_from_buf(&err_set_type->name, get_anon_type_name(ira->codegen, ira->zir, "error", scope, source_node, &bare_name));
+            buf_init_from_buf(&err_set_type->name,
+                get_anon_type_name(ira->codegen, ira->zir, "error", scope, source_node, &bare_name, nullptr));
             err_set_type->size_in_bits = ira->codegen->builtin_types.entry_global_error_set->size_in_bits;
             err_set_type->abi_align = ira->codegen->builtin_types.entry_global_error_set->abi_align;
             err_set_type->abi_size = ira->codegen->builtin_types.entry_global_error_set->abi_size;
@@ -18728,7 +18729,7 @@ static ZigType *type_info_to_type(IrAnalyze *ira, Scope *scope, AstNode *source_
 
             ZigType *entry = new_type_table_entry(ZigTypeIdStruct);
             buf_init_from_buf(&entry->name,
-                get_anon_type_name(ira->codegen, ira->zir, "struct", scope, source_node, &entry->name));
+                get_anon_type_name(ira->codegen, ira->zir, "struct", scope, source_node, &entry->name, nullptr));
             entry->data.structure.decl_node = source_node;
             entry->data.structure.fields = alloc_type_struct_fields(fields_len);
             entry->data.structure.fields_by_name.init(fields_len);
@@ -18838,7 +18839,7 @@ static ZigType *type_info_to_type(IrAnalyze *ira, Scope *scope, AstNode *source_
 
             ZigType *entry = new_type_table_entry(ZigTypeIdEnum);
             buf_init_from_buf(&entry->name,
-                get_anon_type_name(ira->codegen, ira->zir, "enum", scope, source_node, &entry->name));
+                get_anon_type_name(ira->codegen, ira->zir, "enum", scope, source_node, &entry->name, nullptr));
             entry->data.enumeration.decl_node = source_node;
             entry->data.enumeration.tag_int_type = tag_type;
             entry->data.enumeration.decls_scope = create_decls_scope(
@@ -18920,7 +18921,7 @@ static ZigType *type_info_to_type(IrAnalyze *ira, Scope *scope, AstNode *source_
 
             ZigType *entry = new_type_table_entry(ZigTypeIdUnion);
             buf_init_from_buf(&entry->name,
-                get_anon_type_name(ira->codegen, ira->zir, "union", scope, source_node, &entry->name));
+                get_anon_type_name(ira->codegen, ira->zir, "union", scope, source_node, &entry->name, nullptr));
             entry->data.unionation.decl_node = source_node;
             entry->data.unionation.fields = heap::c_allocator.allocate<TypeUnionField>(fields_len);
             entry->data.unionation.fields_by_name.init(fields_len);
