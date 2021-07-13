@@ -874,7 +874,7 @@ pub fn genBody(o: *Object, body: ir.Body) error{ AnalysisFail, OutOfMemory }!voi
             .cmp_lte => try genBinOp(o, inst.castTag(.cmp_lte).?, " <= "),
             .cmp_neq => try genBinOp(o, inst.castTag(.cmp_neq).?, " != "),
             .dbg_stmt => try genDbgStmt(o, inst.castTag(.dbg_stmt).?),
-            .intcast => try genIntCast(o, inst.castTag(.intcast).?),
+            .intcast => try genCast(o, inst.castTag(.intcast).?),
             .load => try genLoad(o, inst.castTag(.load).?),
             .ret => try genRet(o, inst.castTag(.ret).?),
             .retvoid => try genRetVoid(o),
@@ -914,7 +914,7 @@ pub fn genBody(o: *Object, body: ir.Body) error{ AnalysisFail, OutOfMemory }!voi
             .wrap_errunion_payload => try genWrapErrUnionPay(o, inst.castTag(.wrap_errunion_payload).?),
             .wrap_errunion_err => try genWrapErrUnionErr(o, inst.castTag(.wrap_errunion_err).?),
             .br_block_flat => return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement codegen for br_block_flat", .{}),
-            .ptrtoint => return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement codegen for ptrtoint", .{}),
+            .ptrtoint => try genCast(o, inst.castTag(.ptrtoint).?),
             .varptr => try genVarPtr(o, inst.castTag(.varptr).?),
             .floatcast => return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement codegen for floatcast", .{}),
         };
@@ -991,11 +991,17 @@ fn genRet(o: *Object, inst: *Inst.UnOp) !CValue {
     return CValue.none;
 }
 
-fn genIntCast(o: *Object, inst: *Inst.UnOp) !CValue {
+fn genCast(o: *Object, inst: *Inst.UnOp) !CValue {
     if (inst.base.isUnused())
         return CValue.none;
 
     const from = try o.resolveInst(inst.operand);
+    // it looks like Sema is not generating alloca for constant local variables and it is
+    // causing to generate code like:
+    // uintptr_t const t0 = (uintptr_t)&72;
+    if (from == .constant and inst.base.tag == .ptrtoint) {
+        return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: support constants in @ptrToInt", .{});
+    }
 
     const writer = o.writer();
     const local = try o.allocLocal(inst.base.ty, .Const);

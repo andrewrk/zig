@@ -825,6 +825,31 @@ pub fn addCases(ctx: *TestContext) !void {
     }
 
     {
+        var case = ctx.exeFromCompiledC("@ptrToInt/@intToPtr", .{});
+
+        case.addCompareOutput(
+            \\pub export fn main() i32 {
+            \\    var y = 0x41;
+            \\    _ = @ptrToInt(&y);
+            \\    return 0;
+            \\}
+        , "");
+
+        case.addCompareOutput(
+            \\pub export fn main() i32 {
+            \\    var y: u8 = 0x41;
+            \\    const y_ptr = @ptrToInt(&y);
+            \\    const z = @intToPtr(*u8, y_ptr).*;
+            \\
+            \\    if (y != z)
+            \\        @panic("test fail");
+            \\
+            \\    return 0;
+            \\}
+        , "");
+    }
+
+    {
         // TODO: add u64 tests, ran into issues with the literal generated for std.math.maxInt(u64)
         var case = ctx.exeFromCompiledC("add/sub wrapping operations", .{});
         case.addCompareOutput(
