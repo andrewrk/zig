@@ -660,6 +660,7 @@ fn SliceTo(comptime T: type, comptime end: meta.Elem(T)) type {
                                 new_ptr_info.sentinel = null;
                             }
                         }
+                        return @Type(std.builtin.TypeInfo{ .Pointer = new_ptr_info });
                     },
                     else => {},
                 },
@@ -674,15 +675,16 @@ fn SliceTo(comptime T: type, comptime end: meta.Elem(T)) type {
                             new_ptr_info.sentinel = null;
                         }
                     }
+                    return @Type(std.builtin.TypeInfo{ .Pointer = new_ptr_info });
                 },
                 .C => {
                     new_ptr_info.sentinel = end;
                     // C pointers are always allowzero, but we don't want the return type to be.
                     assert(new_ptr_info.is_allowzero);
                     new_ptr_info.is_allowzero = false;
+                    return ?@Type(std.builtin.TypeInfo{ .Pointer = new_ptr_info });
                 },
             }
-            return @Type(std.builtin.TypeInfo{ .Pointer = new_ptr_info });
         },
         else => {},
     }
@@ -695,13 +697,12 @@ fn SliceTo(comptime T: type, comptime end: meta.Elem(T)) type {
 /// If the pointer type is sentinel terminated and `end` matches that terminator, the
 /// resulting slice is also sentinel terminated.
 /// Pointer properties such as mutability and alignment are preserved.
-/// C pointers are assumed to be non-null.
 pub fn sliceTo(ptr: anytype, comptime end: meta.Elem(@TypeOf(ptr))) SliceTo(@TypeOf(ptr), end) {
-    if (@typeInfo(@TypeOf(ptr)) == .Optional) {
+    const Result = SliceTo(@TypeOf(ptr), end);
+    if (@typeInfo(Result) == .Optional) {
         const non_null = ptr orelse return null;
         return sliceTo(non_null, end);
     }
-    const Result = SliceTo(@TypeOf(ptr), end);
     const length = lenSliceTo(ptr, end);
     if (@typeInfo(Result).Pointer.sentinel) |s| {
         return ptr[0..length :s];
@@ -729,7 +730,9 @@ test "sliceTo" {
         try testing.expectEqualSlices(u16, array[0..4], sliceTo(optional_sentinel_ptr, 99).?);
 
         const c_ptr = @as([*c]u16, &array);
-        try testing.expectEqualSlices(u16, array[0..2], sliceTo(c_ptr, 3));
+        try testing.expectEqualSlices(u16, array[0..2], sliceTo(c_ptr, 3).?);
+        const null_c_ptr = @as(?[*c]u16, null);
+        try testing.expect(@as([]u16, null), sliceTo(null_c_ptr, 3));
 
         const slice: []u16 = &array;
         try testing.expectEqualSlices(u16, array[0..2], sliceTo(slice, 3));
