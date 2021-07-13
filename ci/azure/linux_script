@@ -69,9 +69,9 @@ release/bin/zig fmt --check ..
 cmake .. -DZIG_EXECUTABLE="$(pwd)/release/bin/zig"
 make $JOBS install
 
-for step in test-toolchain test-std docs; do
-  release/bin/zig build $step -Denable-qemu -Denable-wasmtime
-done
+release/bin/zig build test-toolchain -Denable-qemu -Denable-wasmtime -Denable-llvm
+release/bin/zig build test-std -Denable-qemu -Denable-wasmtime
+release/bin/zig build docs
 
 # Look for HTML errors.
 tidy -qe ../zig-cache/langref.html

@@ -54,9 +54,9 @@ make $JOBS install
 cmake .. -DZIG_EXECUTABLE="$(pwd)/release/bin/zig"
 make $JOBS install
 
-for step in test-toolchain test-std docs; do
-  release/bin/zig build $step
-done
+release/bin/zig build test-toolchain -Denable-llvm
+release/bin/zig build test-std
+release/bin/zig build docs
 
 if [ "${BUILD_REASON}" != "PullRequest" ]; then
   mv ../LICENSE release/
