@@ -143,6 +143,23 @@ pub fn Reader(
             return array_list.toOwnedSlice();
         }
 
+        /// Reads from the stream until specified byte is found. If the buffer is not
+        /// large enough to hold the entire contents, `error.StreamTooLong` is returned.
+        /// Returns a slice of the stream data, with ptr equal to `buf.ptr`. The
+        /// delimiter byte is not included in the returned slice.
+        pub fn readUntilDelimiter(self: Self, buf: []u8, delimiter: u8) ![]u8 {
+            var index: usize = 0;
+            while (true) {
+                const byte = try self.readByte();
+
+                if (byte == delimiter) return buf[0..index];
+                if (index >= buf.len) return error.StreamTooLong;
+
+                buf[index] = byte;
+                index += 1;
+            }
+        }
+
         /// Allocates enough memory to read until `delimiter` or end-of-stream.
         /// If the allocated memory would be greater than `max_size`, returns
         /// `error.StreamTooLong`. If end-of-stream is found, returns the rest
