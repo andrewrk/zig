@@ -40,3 +40,18 @@ test "@embedFile() returns a string literal" {
     try std.testing.expectEqualStrings(expected_contents, actual_contents);
     try std.testing.expectEqualStrings(expected_contents, ptr_actual_contents[0..actual_contents.len]);
 }
+
+fn testFnForSrc() std.builtin.SourceLocation {
+    return @src();
+}
+
+test "@src() returns a struct containing 0-terminated string slices" {
+    const src = testFnForSrc();
+    try std.testing.expectEqual([:0]const u8, @TypeOf(src.file));
+    try std.testing.expect(std.mem.endsWith(u8, src.file, "3779.zig"));
+    try std.testing.expectEqual([:0]const u8, @TypeOf(src.fn_name));
+    try std.testing.expect(std.mem.endsWith(u8, src.fn_name, "testFnForSrc"));
+
+    const ptr_src_file: [*:0]const u8 = src.file;
+    const ptr_src_fn_name: [*:0]const u8 = src.fn_name;
+}

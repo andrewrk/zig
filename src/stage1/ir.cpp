@@ -24261,12 +24261,6 @@ static Stage1AirInst *ir_analyze_instruction_src(IrAnalyze *ira, Stage1ZirInstSr
         return ira->codegen->invalid_inst_gen;
     }
 
-    ZigType *u8_ptr = get_pointer_to_type_extra2(
-        ira->codegen, ira->codegen->builtin_types.entry_u8,
-        true, false, PtrLenUnknown,
-        0, 0, 0, false, VECTOR_INDEX_NONE, nullptr, ira->codegen->intern.for_zero_byte());
-    ZigType *u8_slice = get_slice_type(ira->codegen, u8_ptr);
-
     ZigType *source_location_type = get_builtin_type(ira->codegen, "SourceLocation");
     if (type_resolve(ira->codegen, source_location_type, ResolveStatusSizeKnown)) {
         zig_unreachable();
@@ -24286,18 +24280,16 @@ static Stage1AirInst *ir_analyze_instruction_src(IrAnalyze *ira, Stage1ZirInstSr
     ZigType *import = instruction->base.source_node->owner;
     RootStruct *root_struct = import->data.structure.root_struct;
     Buf *path = root_struct->path;
-    ZigValue *file_name = create_const_str_lit(ira->codegen, path)->data.x_ptr.data.ref.pointee;
-    init_const_slice(ira->codegen, fields[0], file_name, 0, buf_len(path), true, nullptr);
-    fields[0]->type = u8_slice;
+    fields[0] = create_sentineled_str_lit(
+        ira->codegen, path,
+        ira->codegen->intern.for_zero_byte());
 
     // fn_name: [:0]const u8
     ensure_field_index(source_location_type, "fn_name", 1);
     fields[1]->special = ConstValSpecialStatic;
-
-    ZigValue *fn_name = create_const_str_lit(ira->codegen, &fn_entry->symbol_name)->data.x_ptr.data.ref.pointee;
-    init_const_slice(ira->codegen, fields[1], fn_name, 0, buf_len(&fn_entry->symbol_name), true, nullptr);
-    fields[1]->type = u8_slice;
-
+    fields[1] = create_sentineled_str_lit(
+        ira->codegen, &fn_entry->symbol_name,
+        ira->codegen->intern.for_zero_byte());
 
     TokenLoc tok_loc = root_struct->token_locs[instruction->base.source_node->main_token];
 
