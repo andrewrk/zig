@@ -317,9 +317,9 @@ pub const Utf16LeIterator = struct {
         assert(it.i <= it.bytes.len);
         if (it.i == it.bytes.len) return null;
         const c0: u21 = mem.readIntLittle(u16, it.bytes[it.i..][0..2]);
+        it.i += 2;
         if (c0 & ~@as(u21, 0x03ff) == 0xd800) {
             // surrogate pair
-            it.i += 2;
             if (it.i >= it.bytes.len) return error.DanglingSurrogateHalf;
             const c1: u21 = mem.readIntLittle(u16, it.bytes[it.i..][0..2]);
             if (c1 & ~@as(u21, 0x03ff) != 0xdc00) return error.ExpectedSecondSurrogateHalf;
@@ -328,7 +328,6 @@ pub const Utf16LeIterator = struct {
         } else if (c0 & ~@as(u21, 0x03ff) == 0xdc00) {
             return error.UnexpectedSecondSurrogateHalf;
         } else {
-            it.i += 2;
             return c0;
         }
     }
@@ -767,6 +766,48 @@ fn calcUtf16LeLen(utf8: []const u8) usize {
         src_i = next_src_i;
     }
     return dest_len;
+}
+
+/// Print the given `utf16le` string
+fn formatUtf16le(
+    utf16le: []const u16,
+    comptime fmt: []const u8,
+    options: std.fmt.FormatOptions,
+    writer: anytype,
+) !void {
+    const unknown_codepoint = 0xfffd;
+    _ = fmt;
+    _ = options;
+    var buf: [300]u8 = undefined; // just a random size I chose
+    var it = Utf16LeIterator.init(utf16le);
+    var u8len: usize = 0;
+    while (it.nextCodepoint() catch unknown_codepoint) |codepoint| {
+        u8len += utf8Encode(codepoint, buf[u8len..]) catch
+            utf8Encode(unknown_codepoint, buf[u8len..]) catch unreachable;
+        if (u8len + 3 >= buf.len) {
+            try writer.writeAll(buf[0..u8len]);
+            u8len = 0;
+        }
+    }
+    try writer.writeAll(buf[0..u8len]);
+}
+
+/// Return a Formatter for a Utf16le string
+pub fn fmtUtf16le(utf16le: []const u16) std.fmt.Formatter(formatUtf16le) {
+    return .{ .data = utf16le };
+}
+
+test "fmtUtf16le" {
+    const expectFmt = std.testing.expectFmt;
+    try expectFmt("", "{}", .{fmtUtf16le(utf8ToUtf16LeStringLiteral(""))});
+    try expectFmt("foo", "{}", .{fmtUtf16le(utf8ToUtf16LeStringLiteral("foo"))});
+    try expectFmt("𐐷", "{}", .{fmtUtf16le(utf8ToUtf16LeStringLiteral("𐐷"))});
+    try expectFmt("퟿", "{}", .{fmtUtf16le(&[_]u16{std.mem.readIntNative(u16, "\xff\xd7")})});
+    try expectFmt("�", "{}", .{fmtUtf16le(&[_]u16{std.mem.readIntNative(u16, "\x00\xd8")})});
+    try expectFmt("�", "{}", .{fmtUtf16le(&[_]u16{std.mem.readIntNative(u16, "\xff\xdb")})});
+    try expectFmt("�", "{}", .{fmtUtf16le(&[_]u16{std.mem.readIntNative(u16, "\x00\xdc")})});
+    try expectFmt("�", "{}", .{fmtUtf16le(&[_]u16{std.mem.readIntNative(u16, "\xff\xdf")})});
+    try expectFmt("", "{}", .{fmtUtf16le(&[_]u16{std.mem.readIntNative(u16, "\x00\xe0")})});
 }
 
 test "utf8ToUtf16LeStringLiteral" {
