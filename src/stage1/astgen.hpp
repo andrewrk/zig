@@ -32,6 +32,6 @@ void destroy_instruction_src(Stage1ZirInst *inst);
 
 bool ir_should_inline(Stage1Zir *exec, Scope *scope);
 Buf *get_anon_type_name(CodeGen *codegen, Stage1Zir *exec, const char *kind_name,
-        Scope *scope, AstNode *source_node, Buf *out_bare_name);
+        Scope *scope, AstNode *source_node, Buf *out_bare_name, ResultLoc *result_loc);
 
 #endif
