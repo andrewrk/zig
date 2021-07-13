@@ -1006,3 +1006,40 @@ test "isError" {
     try std.testing.expect(isError(math.absInt(@as(i8, -128))));
     try std.testing.expect(!isError(math.absInt(@as(i8, -127))));
 }
+
+pub fn isArray(comptime T: type) bool {
+    return switch (@typeInfo(T)) { .Array => true, else => false };
+}
+
+pub fn AsArray(comptime ElementType: type, comptime s: anytype) type {
+    switch (@typeInfo(@TypeOf(s))) {
+        .Pointer => |info| switch(info.size) {
+            .One => switch (@typeInfo(info.child)) {
+                .Array => return info.child,
+                else => {},
+            },
+            .Slice => return @Type(.{ .Array = .{
+                .len = s.len,
+                .child = info.child,
+                .sentinel = info.sentinel,
+            }}),
+            else => {},
+        },
+        else => {},
+    }
+    @compileError("unable to coerce " ++ @typeName(@TypeOf(s)) ++ " to [N]" ++ @typeName(ElementType));
+}
+
+pub fn asArray(comptime ElementType: type, comptime s: anytype) AsArray(ElementType, s) {
+    switch (@typeInfo(@TypeOf(s))) {
+        .Pointer => |info| switch(info.size) {
+            .One => switch (@typeInfo(info.child)) {
+                .Array => return s.*,
+                else => @compileError(err),
+            },
+            .Slice => return mem.sliceToArray(ElementType, s),
+            else => unreachable,
+        },
+        else => unreachable,
+    }
+}
