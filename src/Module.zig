@@ -448,6 +448,26 @@ pub const Decl = struct {
         return tv.ty.zigTypeTag() == .Fn;
     }
 
+    pub fn isConstVariable(decl: *Decl) bool {
+        if (decl.getVariable()) |variable| {
+            if (variable.is_mutable) {
+                return false;
+            } else {
+                return true;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    pub fn updateReadOnlyStatus(decl: *Decl) void {
+        decl.link.elf.read_only = decl.isConstVariable();
+        // switch (decl.link) {
+        //     .elf => |*text_block| text_block.read_only = decl.isConstVariable,
+        //     else => {},
+        // }
+    }
+
     /// If the Decl has a value and it is a struct, return it,
     /// otherwise null.
     pub fn getStruct(decl: *Decl) ?*Struct {
@@ -2910,6 +2930,7 @@ pub fn semaFile(mod: *Module, file: *Scope.File) InnerError!void {
     new_decl.owns_tv = true;
     new_decl.analysis = .in_progress;
     new_decl.generation = mod.generation;
+    new_decl.updateReadOnlyStatus();
 
     if (file.status == .success_zir) {
         assert(file.zir_loaded);
@@ -3407,6 +3428,7 @@ fn scanDecl(iter: *ScanDeclIter, decl_sub_index: usize, flags: u4) InnerError!vo
         new_decl.has_align = has_align;
         new_decl.has_linksection = has_linksection;
         new_decl.zir_decl_index = @intCast(u32, decl_sub_index);
+        new_decl.updateReadOnlyStatus();
         return;
     }
     gpa.free(decl_name);
@@ -3919,6 +3941,7 @@ pub fn createAnonymousDeclNamed(
     new_decl.owns_tv = true;
     new_decl.analysis = .complete;
     new_decl.generation = mod.generation;
+    new_decl.updateReadOnlyStatus();
 
     namespace.anon_decls.putAssumeCapacityNoClobber(new_decl, {});
 
