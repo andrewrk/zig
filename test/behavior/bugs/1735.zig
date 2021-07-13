@@ -42,5 +42,5 @@ const a = struct {
 
 test "intialization" {
     var t = a.init();
-    try std.testing.expect(t.foo.len == 0);
+    try std.testing.expectEqual(t.foo.len, 0);
 }

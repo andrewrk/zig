@@ -1,4 +1,5 @@
 const expect = @import("std").testing.expect;
+const expectEqual = @import("std").testing.expectEqual;
 
 const A = struct {
     b: B,
@@ -26,5 +27,5 @@ test "incomplete struct param top level declaration" {
             .c = C{ .x = 13 },
         },
     };
-    try expect(foo(a) == 13);
+    try expectEqual(foo(a), 13);
 }

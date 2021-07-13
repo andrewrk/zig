@@ -4,9 +4,9 @@ const expect = testing.expect;
 const expectEqual = testing.expectEqual;
 
 test "simple generic fn" {
-    try expect(max(i32, 3, -1) == 3);
-    try expect(max(f32, 0.123, 0.456) == 0.456);
-    try expect(add(2, 3) == 5);
+    try expectEqual(max(i32, 3, -1), 3);
+    try expectEqual(max(f32, 0.123, 0.456), 0.456);
+    try expectEqual(add(2, 3), 5);
 }
 
 fn max(comptime T: type, a: T, b: T) T {
@@ -19,7 +19,7 @@ fn add(comptime a: i32, b: i32) i32 {
 
 const the_max = max(u32, 1234, 5678);
 test "compile time generic eval" {
-    try expect(the_max == 5678);
+    try expectEqual(the_max, 5678);
 }
 
 fn gimmeTheBigOne(a: u32, b: u32) u32 {
@@ -35,19 +35,19 @@ fn sameButWithFloats(a: f64, b: f64) f64 {
 }
 
 test "fn with comptime args" {
-    try expect(gimmeTheBigOne(1234, 5678) == 5678);
-    try expect(shouldCallSameInstance(34, 12) == 34);
-    try expect(sameButWithFloats(0.43, 0.49) == 0.49);
+    try expectEqual(gimmeTheBigOne(1234, 5678), 5678);
+    try expectEqual(shouldCallSameInstance(34, 12), 34);
+    try expectEqual(sameButWithFloats(0.43, 0.49), 0.49);
 }
 
 test "var params" {
-    try expect(max_i32(12, 34) == 34);
-    try expect(max_f64(1.2, 3.4) == 3.4);
+    try expectEqual(max_i32(12, 34), 34);
+    try expectEqual(max_f64(1.2, 3.4), 3.4);
 }
 
 test {
-    comptime try expect(max_i32(12, 34) == 34);
-    comptime try expect(max_f64(1.2, 3.4) == 3.4);
+    comptime try expectEqual(max_i32(12, 34), 34);
+    comptime try expectEqual(max_f64(1.2, 3.4), 3.4);
 }
 
 fn max_var(a: anytype, b: anytype) @TypeOf(a + b) {
@@ -79,8 +79,8 @@ test "function with return type type" {
     var list2: List(i32) = undefined;
     list.length = 10;
     list2.length = 10;
-    try expect(list.prealloc_items.len == 8);
-    try expect(list2.prealloc_items.len == 8);
+    try expectEqual(list.prealloc_items.len, 8);
+    try expectEqual(list2.prealloc_items.len, 8);
 }
 
 test "generic struct" {
@@ -92,8 +92,8 @@ test "generic struct" {
         .value = true,
         .next = null,
     };
-    try expect(a1.value == 13);
-    try expect(a1.value == a1.getVal());
+    try expectEqual(a1.value, 13);
+    try expectEqual(a1.value, a1.getVal());
     try expect(b1.getVal());
 }
 fn GenNode(comptime T: type) type {
@@ -107,7 +107,7 @@ fn GenNode(comptime T: type) type {
 }
 
 test "const decls in struct" {
-    try expect(GenericDataThing(3).count_plus_one == 4);
+    try expectEqual(GenericDataThing(3).count_plus_one, 4);
 }
 fn GenericDataThing(comptime count: isize) type {
     return struct {
@@ -116,14 +116,14 @@ fn GenericDataThing(comptime count: isize) type {
 }
 
 test "use generic param in generic param" {
-    try expect(aGenericFn(i32, 3, 4) == 7);
+    try expectEqual(aGenericFn(i32, 3, 4), 7);
 }
 fn aGenericFn(comptime T: type, comptime a: T, b: T) T {
     return a + b;
 }
 
 test "generic fn with implicit cast" {
-    try expect(getFirstByte(u8, &[_]u8{13}) == 13);
+    try expectEqual(getFirstByte(u8, &[_]u8{13}), 13);
     try expect(getFirstByte(u16, &[_]u16{
         0,
         13,

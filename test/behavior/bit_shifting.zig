@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 fn ShardedTable(comptime Key: type, comptime mask_bit_count: comptime_int, comptime V: type) type {
     const key_bits = @typeInfo(Key).Int.bits;
@@ -79,13 +80,13 @@ fn testShardedTable(comptime Key: type, comptime mask_bit_count: comptime_int, c
     var node_buffer: [node_count]Table.Node = undefined;
     for (node_buffer) |*node, i| {
         const key = @intCast(Key, i);
-        try expect(table.get(key) == null);
+        try expectEqual(table.get(key), null);
         node.init(key, {});
         table.put(node);
     }
 
     for (node_buffer) |*node, i| {
-        try expect(table.get(@intCast(Key, i)) == node);
+        try expectEqual(table.get(@intCast(Key, i)), node);
     }
 }
 
@@ -93,9 +94,9 @@ fn testShardedTable(comptime Key: type, comptime mask_bit_count: comptime_int, c
 test "comptime shr of BigInt" {
     comptime {
         var n0 = 0xdeadbeef0000000000000000;
-        try expect(n0 >> 64 == 0xdeadbeef);
+        try expectEqual(n0 >> 64, 0xdeadbeef);
         var n1 = 17908056155735594659;
-        try expect(n1 >> 64 == 0);
+        try expectEqual(n1 >> 64, 0);
     }
 }
 

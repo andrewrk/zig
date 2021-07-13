@@ -1,4 +1,5 @@
 const expect = @import("std").testing.expect;
+const expectEqual = @import("std").testing.expectEqual;
 
 test "bool literals" {
     try expect(true);
@@ -8,18 +9,18 @@ test "bool literals" {
 test "cast bool to int" {
     const t = true;
     const f = false;
-    try expect(@boolToInt(t) == @as(u32, 1));
-    try expect(@boolToInt(f) == @as(u32, 0));
+    try expectEqual(@boolToInt(t), @as(u32, 1));
+    try expectEqual(@boolToInt(f), @as(u32, 0));
     try nonConstCastBoolToInt(t, f);
 }
 
 fn nonConstCastBoolToInt(t: bool, f: bool) !void {
-    try expect(@boolToInt(t) == @as(u32, 1));
-    try expect(@boolToInt(f) == @as(u32, 0));
+    try expectEqual(@boolToInt(t), @as(u32, 1));
+    try expectEqual(@boolToInt(f), @as(u32, 0));
 }
 
 test "bool cmp" {
-    try expect(testBoolCmp(true, false) == false);
+    try expectEqual(testBoolCmp(true, false), false);
 }
 fn testBoolCmp(a: bool, b: bool) bool {
     return a == b;

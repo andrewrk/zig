@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 pub fn List(comptime T: type) type {
     _ = T;
@@ -14,5 +15,5 @@ const Element = struct {
 test "false dependency loop in struct definition" {
     const listType = ElementList;
     var x: listType = 42;
-    try expect(x == 42);
+    try expectEqual(x, 42);
 }

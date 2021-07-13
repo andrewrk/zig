@@ -27,5 +27,5 @@ fn parseNote() ?i32 {
 
 test "fixed" {
     const result = parseNote();
-    try std.testing.expect(result.? == 9);
+    try std.testing.expectEqual(result.?, 9);
 }

@@ -18,5 +18,5 @@ usingnamespace struct {
 };
 
 test "usingnamespace does not redeclare an imported variable" {
-    comptime try std.testing.expect(foo == 42);
+    comptime try std.testing.expectEqual(foo, 42);
 }

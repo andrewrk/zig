@@ -8,13 +8,13 @@ test "basic invocations" {
             return 1234;
         }
     }.foo;
-    try expect(@call(.{}, foo, .{}) == 1234);
+    try expectEqual(@call(.{}, foo, .{}), 1234);
     comptime {
         // modifiers that allow comptime calls
-        try expect(@call(.{}, foo, .{}) == 1234);
-        try expect(@call(.{ .modifier = .no_async }, foo, .{}) == 1234);
-        try expect(@call(.{ .modifier = .always_tail }, foo, .{}) == 1234);
-        try expect(@call(.{ .modifier = .always_inline }, foo, .{}) == 1234);
+        try expectEqual(@call(.{}, foo, .{}), 1234);
+        try expectEqual(@call(.{ .modifier = .no_async }, foo, .{}), 1234);
+        try expectEqual(@call(.{ .modifier = .always_tail }, foo, .{}), 1234);
+        try expectEqual(@call(.{ .modifier = .always_inline }, foo, .{}), 1234);
     }
     {
         // comptime call without comptime keyword
@@ -24,9 +24,9 @@ test "basic invocations" {
     {
         // call of non comptime-known function
         var alias_foo = foo;
-        try expect(@call(.{ .modifier = .no_async }, alias_foo, .{}) == 1234);
-        try expect(@call(.{ .modifier = .never_tail }, alias_foo, .{}) == 1234);
-        try expect(@call(.{ .modifier = .never_inline }, alias_foo, .{}) == 1234);
+        try expectEqual(@call(.{ .modifier = .no_async }, alias_foo, .{}), 1234);
+        try expectEqual(@call(.{ .modifier = .never_tail }, alias_foo, .{}), 1234);
+        try expectEqual(@call(.{ .modifier = .never_inline }, alias_foo, .{}), 1234);
     }
 }
 
@@ -38,20 +38,20 @@ test "tuple parameters" {
     }.add;
     var a: i32 = 12;
     var b: i32 = 34;
-    try expect(@call(.{}, add, .{ a, 34 }) == 46);
-    try expect(@call(.{}, add, .{ 12, b }) == 46);
-    try expect(@call(.{}, add, .{ a, b }) == 46);
-    try expect(@call(.{}, add, .{ 12, 34 }) == 46);
-    comptime try expect(@call(.{}, add, .{ 12, 34 }) == 46);
+    try expectEqual(@call(.{}, add, .{ a, 34 }), 46);
+    try expectEqual(@call(.{}, add, .{ 12, b }), 46);
+    try expectEqual(@call(.{}, add, .{ a, b }), 46);
+    try expectEqual(@call(.{}, add, .{ 12, 34 }), 46);
+    comptime try expectEqual(@call(.{}, add, .{ 12, 34 }), 46);
     {
         const separate_args0 = .{ a, b };
         const separate_args1 = .{ a, 34 };
         const separate_args2 = .{ 12, 34 };
         const separate_args3 = .{ 12, b };
-        try expect(@call(.{ .modifier = .always_inline }, add, separate_args0) == 46);
-        try expect(@call(.{ .modifier = .always_inline }, add, separate_args1) == 46);
-        try expect(@call(.{ .modifier = .always_inline }, add, separate_args2) == 46);
-        try expect(@call(.{ .modifier = .always_inline }, add, separate_args3) == 46);
+        try expectEqual(@call(.{ .modifier = .always_inline }, add, separate_args0), 46);
+        try expectEqual(@call(.{ .modifier = .always_inline }, add, separate_args1), 46);
+        try expectEqual(@call(.{ .modifier = .always_inline }, add, separate_args2), 46);
+        try expectEqual(@call(.{ .modifier = .always_inline }, add, separate_args3), 46);
     }
 }
 

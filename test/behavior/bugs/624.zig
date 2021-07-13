@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 const TestContext = struct {
     server_context: *ListenerContext,
@@ -20,5 +21,5 @@ fn MemoryPool(comptime T: type) type {
 
 test "foo" {
     var allocator = ContextAllocator{ .n = 10 };
-    try expect(allocator.n == 10);
+    try expectEqual(allocator.n, 10);
 }

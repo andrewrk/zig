@@ -7,12 +7,12 @@ const S = struct {
     y: E,
 };
 
-const expect = @import("std").testing.expect;
+const expectEqual = @import("std").testing.expectEqual;
 
 test "bug 394 fixed" {
     const x = S{
         .x = 3,
         .y = E{ .B = 1 },
     };
-    try expect(x.x == 3);
+    try expectEqual(x.x, 3);
 }

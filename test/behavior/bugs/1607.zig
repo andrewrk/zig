@@ -5,7 +5,7 @@ const a = [_]u8{ 1, 2, 3 };
 
 fn checkAddress(s: []const u8) !void {
     for (s) |*i, j| {
-        try testing.expect(i == &a[j]);
+        try testing.expectEqual(i, &a[j]);
     }
 }
 

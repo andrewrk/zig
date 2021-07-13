@@ -17,5 +17,5 @@ test "union that needs padding bytes inside an array" {
     };
 
     const a = as[0].B;
-    try std.testing.expect(a.D == 1);
+    try std.testing.expectEqual(a.D, 1);
 }

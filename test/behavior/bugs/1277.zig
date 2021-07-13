@@ -11,5 +11,5 @@ fn f() i32 {
 }
 
 test "don't emit an LLVM global for a const function when it's in an optional in a struct" {
-    try std.testing.expect(s.f.?() == 1234);
+    try std.testing.expectEqual(s.f.?(), 1234);
 }

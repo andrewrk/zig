@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 const math = std.math;
 const pi = std.math.pi;
 const e = std.math.e;
@@ -15,26 +16,26 @@ test "@sqrt" {
 fn testSqrt() !void {
     {
         var a: f16 = 4;
-        try expect(@sqrt(a) == 2);
+        try expectEqual(@sqrt(a), 2);
     }
     {
         var a: f32 = 9;
-        try expect(@sqrt(a) == 3);
+        try expectEqual(@sqrt(a), 3);
         var b: f32 = 1.1;
         try expect(math.approxEqAbs(f32, @sqrt(b), 1.0488088481701516, epsilon));
     }
     {
         var a: f64 = 25;
-        try expect(@sqrt(a) == 5);
+        try expectEqual(@sqrt(a), 5);
     }
     {
         const a: comptime_float = 25.0;
-        try expect(@sqrt(a) == 5.0);
+        try expectEqual(@sqrt(a), 5.0);
     }
     // TODO https://github.com/ziglang/zig/issues/4026
     //{
     //    var a: f128 = 49;
-    //try expect(@sqrt(a) == 7);
+    //try expectEqual(@sqrt(a) ,  7);
     //}
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, 2.2, 3.3, 4.4 };
@@ -48,20 +49,20 @@ fn testSqrt() !void {
 
 test "more @sqrt f16 tests" {
     // TODO these are not all passing at comptime
-    try expect(@sqrt(@as(f16, 0.0)) == 0.0);
+    try expectEqual(@sqrt(@as(f16, 0.0)), 0.0);
     try expect(math.approxEqAbs(f16, @sqrt(@as(f16, 2.0)), 1.414214, epsilon));
     try expect(math.approxEqAbs(f16, @sqrt(@as(f16, 3.6)), 1.897367, epsilon));
-    try expect(@sqrt(@as(f16, 4.0)) == 2.0);
+    try expectEqual(@sqrt(@as(f16, 4.0)), 2.0);
     try expect(math.approxEqAbs(f16, @sqrt(@as(f16, 7.539840)), 2.745877, epsilon));
     try expect(math.approxEqAbs(f16, @sqrt(@as(f16, 19.230934)), 4.385309, epsilon));
-    try expect(@sqrt(@as(f16, 64.0)) == 8.0);
+    try expectEqual(@sqrt(@as(f16, 64.0)), 8.0);
     try expect(math.approxEqAbs(f16, @sqrt(@as(f16, 64.1)), 8.006248, epsilon));
     try expect(math.approxEqAbs(f16, @sqrt(@as(f16, 8942.230469)), 94.563370, epsilon));
 
     // special cases
     try expect(math.isPositiveInf(@sqrt(@as(f16, math.inf(f16)))));
-    try expect(@sqrt(@as(f16, 0.0)) == 0.0);
-    try expect(@sqrt(@as(f16, -0.0)) == -0.0);
+    try expectEqual(@sqrt(@as(f16, 0.0)), 0.0);
+    try expectEqual(@sqrt(@as(f16, -0.0)), -0.0);
     try expect(math.isNan(@sqrt(@as(f16, -1.0))));
     try expect(math.isNan(@sqrt(@as(f16, math.nan(f16)))));
 }
@@ -76,15 +77,15 @@ fn testSin() !void {
     // https://github.com/ziglang/zig/issues/4026
     {
         var a: f16 = 0;
-        try expect(@sin(a) == 0);
+        try expectEqual(@sin(a), 0);
     }
     {
         var a: f32 = 0;
-        try expect(@sin(a) == 0);
+        try expectEqual(@sin(a), 0);
     }
     {
         var a: f64 = 0;
-        try expect(@sin(a) == 0);
+        try expectEqual(@sin(a), 0);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, 2.2, 3.3, 4.4 };
@@ -106,15 +107,15 @@ fn testCos() !void {
     // https://github.com/ziglang/zig/issues/4026
     {
         var a: f16 = 0;
-        try expect(@cos(a) == 1);
+        try expectEqual(@cos(a), 1);
     }
     {
         var a: f32 = 0;
-        try expect(@cos(a) == 1);
+        try expectEqual(@cos(a), 1);
     }
     {
         var a: f64 = 0;
-        try expect(@cos(a) == 1);
+        try expectEqual(@cos(a), 1);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, 2.2, 3.3, 4.4 };
@@ -136,15 +137,15 @@ fn testExp() !void {
     // https://github.com/ziglang/zig/issues/4026
     {
         var a: f16 = 0;
-        try expect(@exp(a) == 1);
+        try expectEqual(@exp(a), 1);
     }
     {
         var a: f32 = 0;
-        try expect(@exp(a) == 1);
+        try expectEqual(@exp(a), 1);
     }
     {
         var a: f64 = 0;
-        try expect(@exp(a) == 1);
+        try expectEqual(@exp(a), 1);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, 2.2, 0.3, 0.4 };
@@ -166,15 +167,15 @@ fn testExp2() !void {
     // https://github.com/ziglang/zig/issues/4026
     {
         var a: f16 = 2;
-        try expect(@exp2(a) == 4);
+        try expectEqual(@exp2(a), 4);
     }
     {
         var a: f32 = 2;
-        try expect(@exp2(a) == 4);
+        try expectEqual(@exp2(a), 4);
     }
     {
         var a: f64 = 2;
-        try expect(@exp2(a) == 4);
+        try expectEqual(@exp2(a), 4);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, 2.2, 0.3, 0.4 };
@@ -228,15 +229,15 @@ fn testLog2() !void {
     // https://github.com/ziglang/zig/issues/4026
     {
         var a: f16 = 4;
-        try expect(@log2(a) == 2);
+        try expectEqual(@log2(a), 2);
     }
     {
         var a: f32 = 4;
-        try expect(@log2(a) == 2);
+        try expectEqual(@log2(a), 2);
     }
     {
         var a: f64 = 4;
-        try expect(@log2(a) == 2);
+        try expectEqual(@log2(a), 2);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, 2.2, 0.3, 0.4 };
@@ -258,15 +259,15 @@ fn testLog10() !void {
     // https://github.com/ziglang/zig/issues/4026
     {
         var a: f16 = 100;
-        try expect(@log10(a) == 2);
+        try expectEqual(@log10(a), 2);
     }
     {
         var a: f32 = 100;
-        try expect(@log10(a) == 2);
+        try expectEqual(@log10(a), 2);
     }
     {
         var a: f64 = 1000;
-        try expect(@log10(a) == 3);
+        try expectEqual(@log10(a), 3);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, 2.2, 0.3, 0.4 };
@@ -289,20 +290,20 @@ fn testFabs() !void {
     {
         var a: f16 = -2.5;
         var b: f16 = 2.5;
-        try expect(@fabs(a) == 2.5);
-        try expect(@fabs(b) == 2.5);
+        try expectEqual(@fabs(a), 2.5);
+        try expectEqual(@fabs(b), 2.5);
     }
     {
         var a: f32 = -2.5;
         var b: f32 = 2.5;
-        try expect(@fabs(a) == 2.5);
-        try expect(@fabs(b) == 2.5);
+        try expectEqual(@fabs(a), 2.5);
+        try expectEqual(@fabs(b), 2.5);
     }
     {
         var a: f64 = -2.5;
         var b: f64 = 2.5;
-        try expect(@fabs(a) == 2.5);
-        try expect(@fabs(b) == 2.5);
+        try expectEqual(@fabs(a), 2.5);
+        try expectEqual(@fabs(b), 2.5);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, -2.2, 0.3, -0.4 };
@@ -324,15 +325,15 @@ fn testFloor() !void {
     // https://github.com/ziglang/zig/issues/4026
     {
         var a: f16 = 2.1;
-        try expect(@floor(a) == 2);
+        try expectEqual(@floor(a), 2);
     }
     {
         var a: f32 = 2.1;
-        try expect(@floor(a) == 2);
+        try expectEqual(@floor(a), 2);
     }
     {
         var a: f64 = 3.5;
-        try expect(@floor(a) == 3);
+        try expectEqual(@floor(a), 3);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, -2.2, 0.3, -0.4 };
@@ -354,15 +355,15 @@ fn testCeil() !void {
     // https://github.com/ziglang/zig/issues/4026
     {
         var a: f16 = 2.1;
-        try expect(@ceil(a) == 3);
+        try expectEqual(@ceil(a), 3);
     }
     {
         var a: f32 = 2.1;
-        try expect(@ceil(a) == 3);
+        try expectEqual(@ceil(a), 3);
     }
     {
         var a: f64 = 3.5;
-        try expect(@ceil(a) == 4);
+        try expectEqual(@ceil(a), 4);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, -2.2, 0.3, -0.4 };
@@ -384,15 +385,15 @@ fn testTrunc() !void {
     // https://github.com/ziglang/zig/issues/4026
     {
         var a: f16 = 2.1;
-        try expect(@trunc(a) == 2);
+        try expectEqual(@trunc(a), 2);
     }
     {
         var a: f32 = 2.1;
-        try expect(@trunc(a) == 2);
+        try expectEqual(@trunc(a), 2);
     }
     {
         var a: f64 = -3.5;
-        try expect(@trunc(a) == -3);
+        try expectEqual(@trunc(a), -3);
     }
     {
         var v: Vector(4, f32) = [_]f32{ 1.1, -2.2, 0.3, -0.4 };
@@ -414,7 +415,7 @@ fn testFloatComparisons() !void {
         // No decimal part
         {
             const x: ty = 1.0;
-            try expect(x == 1);
+            try expectEqual(x, 1);
             try expect(x != 0);
             try expect(x > 0);
             try expect(x < 2);
@@ -456,10 +457,10 @@ fn testDifferentSizedFloatComparisons() !void {
 //    // https://github.com/ziglang/zig/issues/4026
 //    {
 //        var a: f32 = 2.1;
-//    try expect(@nearbyint(a) == 2);
+//    try expectEqual(@nearbyint(a) ,  2);
 //    }
 //    {
 //        var a: f64 = -3.75;
-//    try expect(@nearbyint(a) == -4);
+//    try expectEqual(@nearbyint(a) ,  -4);
 //    }
 //}

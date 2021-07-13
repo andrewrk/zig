@@ -5,7 +5,7 @@ const expectEqual = std.testing.expectEqual;
 
 test "@sizeOf and @TypeOf" {
     const y: @TypeOf(x) = 120;
-    try expect(@sizeOf(@TypeOf(y)) == 2);
+    try expectEqual(@sizeOf(@TypeOf(y)), 2);
 }
 const x: u16 = 13;
 const z: @TypeOf(x) = 19;
@@ -36,27 +36,27 @@ const P = packed struct {
 
 test "@offsetOf" {
     // Packed structs have fixed memory layout
-    try expect(@offsetOf(P, "a") == 0);
-    try expect(@offsetOf(P, "b") == 1);
-    try expect(@offsetOf(P, "c") == 5);
-    try expect(@offsetOf(P, "d") == 6);
-    try expect(@offsetOf(P, "e") == 6);
-    try expect(@offsetOf(P, "f") == 7);
-    try expect(@offsetOf(P, "g") == 9);
-    try expect(@offsetOf(P, "h") == 11);
-    try expect(@offsetOf(P, "i") == 12);
+    try expectEqual(@offsetOf(P, "a"), 0);
+    try expectEqual(@offsetOf(P, "b"), 1);
+    try expectEqual(@offsetOf(P, "c"), 5);
+    try expectEqual(@offsetOf(P, "d"), 6);
+    try expectEqual(@offsetOf(P, "e"), 6);
+    try expectEqual(@offsetOf(P, "f"), 7);
+    try expectEqual(@offsetOf(P, "g"), 9);
+    try expectEqual(@offsetOf(P, "h"), 11);
+    try expectEqual(@offsetOf(P, "i"), 12);
 
     // Normal struct fields can be moved/padded
     var a: A = undefined;
-    try expect(@ptrToInt(&a.a) - @ptrToInt(&a) == @offsetOf(A, "a"));
-    try expect(@ptrToInt(&a.b) - @ptrToInt(&a) == @offsetOf(A, "b"));
-    try expect(@ptrToInt(&a.c) - @ptrToInt(&a) == @offsetOf(A, "c"));
-    try expect(@ptrToInt(&a.d) - @ptrToInt(&a) == @offsetOf(A, "d"));
-    try expect(@ptrToInt(&a.e) - @ptrToInt(&a) == @offsetOf(A, "e"));
-    try expect(@ptrToInt(&a.f) - @ptrToInt(&a) == @offsetOf(A, "f"));
-    try expect(@ptrToInt(&a.g) - @ptrToInt(&a) == @offsetOf(A, "g"));
-    try expect(@ptrToInt(&a.h) - @ptrToInt(&a) == @offsetOf(A, "h"));
-    try expect(@ptrToInt(&a.i) - @ptrToInt(&a) == @offsetOf(A, "i"));
+    try expectEqual(@ptrToInt(&a.a) - @ptrToInt(&a), @offsetOf(A, "a"));
+    try expectEqual(@ptrToInt(&a.b) - @ptrToInt(&a), @offsetOf(A, "b"));
+    try expectEqual(@ptrToInt(&a.c) - @ptrToInt(&a), @offsetOf(A, "c"));
+    try expectEqual(@ptrToInt(&a.d) - @ptrToInt(&a), @offsetOf(A, "d"));
+    try expectEqual(@ptrToInt(&a.e) - @ptrToInt(&a), @offsetOf(A, "e"));
+    try expectEqual(@ptrToInt(&a.f) - @ptrToInt(&a), @offsetOf(A, "f"));
+    try expectEqual(@ptrToInt(&a.g) - @ptrToInt(&a), @offsetOf(A, "g"));
+    try expectEqual(@ptrToInt(&a.h) - @ptrToInt(&a), @offsetOf(A, "h"));
+    try expectEqual(@ptrToInt(&a.i) - @ptrToInt(&a), @offsetOf(A, "i"));
 }
 
 test "@offsetOf packed struct, array length not power of 2 or multiple of native pointer width in bytes" {
@@ -105,28 +105,28 @@ test "@offsetOf packed struct, array length not power of 2 or multiple of native
 
 test "@bitOffsetOf" {
     // Packed structs have fixed memory layout
-    try expect(@bitOffsetOf(P, "a") == 0);
-    try expect(@bitOffsetOf(P, "b") == 8);
-    try expect(@bitOffsetOf(P, "c") == 40);
-    try expect(@bitOffsetOf(P, "d") == 48);
-    try expect(@bitOffsetOf(P, "e") == 51);
-    try expect(@bitOffsetOf(P, "f") == 56);
-    try expect(@bitOffsetOf(P, "g") == 72);
+    try expectEqual(@bitOffsetOf(P, "a"), 0);
+    try expectEqual(@bitOffsetOf(P, "b"), 8);
+    try expectEqual(@bitOffsetOf(P, "c"), 40);
+    try expectEqual(@bitOffsetOf(P, "d"), 48);
+    try expectEqual(@bitOffsetOf(P, "e"), 51);
+    try expectEqual(@bitOffsetOf(P, "f"), 56);
+    try expectEqual(@bitOffsetOf(P, "g"), 72);
 
-    try expect(@offsetOf(A, "a") * 8 == @bitOffsetOf(A, "a"));
-    try expect(@offsetOf(A, "b") * 8 == @bitOffsetOf(A, "b"));
-    try expect(@offsetOf(A, "c") * 8 == @bitOffsetOf(A, "c"));
-    try expect(@offsetOf(A, "d") * 8 == @bitOffsetOf(A, "d"));
-    try expect(@offsetOf(A, "e") * 8 == @bitOffsetOf(A, "e"));
-    try expect(@offsetOf(A, "f") * 8 == @bitOffsetOf(A, "f"));
-    try expect(@offsetOf(A, "g") * 8 == @bitOffsetOf(A, "g"));
+    try expectEqual(@offsetOf(A, "a") * 8, @bitOffsetOf(A, "a"));
+    try expectEqual(@offsetOf(A, "b") * 8, @bitOffsetOf(A, "b"));
+    try expectEqual(@offsetOf(A, "c") * 8, @bitOffsetOf(A, "c"));
+    try expectEqual(@offsetOf(A, "d") * 8, @bitOffsetOf(A, "d"));
+    try expectEqual(@offsetOf(A, "e") * 8, @bitOffsetOf(A, "e"));
+    try expectEqual(@offsetOf(A, "f") * 8, @bitOffsetOf(A, "f"));
+    try expectEqual(@offsetOf(A, "g") * 8, @bitOffsetOf(A, "g"));
 }
 
 test "@sizeOf on compile-time types" {
-    try expect(@sizeOf(comptime_int) == 0);
-    try expect(@sizeOf(comptime_float) == 0);
-    try expect(@sizeOf(@TypeOf(.hi)) == 0);
-    try expect(@sizeOf(@TypeOf(type)) == 0);
+    try expectEqual(@sizeOf(comptime_int), 0);
+    try expectEqual(@sizeOf(comptime_float), 0);
+    try expectEqual(@sizeOf(@TypeOf(.hi)), 0);
+    try expectEqual(@sizeOf(@TypeOf(type)), 0);
 }
 
 test "@sizeOf(T) == 0 doesn't force resolving struct size" {
@@ -140,8 +140,8 @@ test "@sizeOf(T) == 0 doesn't force resolving struct size" {
         };
     };
 
-    try expect(@sizeOf(S.Foo) == 4);
-    try expect(@sizeOf(S.Bar) == 8);
+    try expectEqual(@sizeOf(S.Foo), 4);
+    try expectEqual(@sizeOf(S.Bar), 8);
 }
 
 test "@TypeOf() has no runtime side effects" {
@@ -153,8 +153,8 @@ test "@TypeOf() has no runtime side effects" {
     };
     var data: i32 = 0;
     const T = @TypeOf(S.foo(i32, &data));
-    comptime try expect(T == i32);
-    try expect(data == 0);
+    comptime try expectEqual(T, i32);
+    try expectEqual(data, 0);
 }
 
 test "@TypeOf() with multiple arguments" {
@@ -162,21 +162,21 @@ test "@TypeOf() with multiple arguments" {
         var var_1: u32 = undefined;
         var var_2: u8 = undefined;
         var var_3: u64 = undefined;
-        comptime try expect(@TypeOf(var_1, var_2, var_3) == u64);
+        comptime try expectEqual(@TypeOf(var_1, var_2, var_3), u64);
     }
     {
         var var_1: f16 = undefined;
         var var_2: f32 = undefined;
         var var_3: f64 = undefined;
-        comptime try expect(@TypeOf(var_1, var_2, var_3) == f64);
+        comptime try expectEqual(@TypeOf(var_1, var_2, var_3), f64);
     }
     {
         var var_1: u16 = undefined;
-        comptime try expect(@TypeOf(var_1, 0xffff) == u16);
+        comptime try expectEqual(@TypeOf(var_1, 0xffff), u16);
     }
     {
         var var_1: f32 = undefined;
-        comptime try expect(@TypeOf(var_1, 3.1415) == f32);
+        comptime try expectEqual(@TypeOf(var_1, 3.1415), f32);
     }
 }
 
@@ -189,8 +189,8 @@ test "branching logic inside @TypeOf" {
         }
     };
     const T = @TypeOf(S.foo() catch undefined);
-    comptime try expect(T == i32);
-    try expect(S.data == 0);
+    comptime try expectEqual(T, i32);
+    try expectEqual(S.data, 0);
 }
 
 fn fn1(alpha: bool) void {
@@ -203,8 +203,8 @@ test "lazy @sizeOf result is checked for definedness" {
 }
 
 test "@bitSizeOf" {
-    try expect(@bitSizeOf(u2) == 2);
-    try expect(@bitSizeOf(u8) == @sizeOf(u8) * 8);
+    try expectEqual(@bitSizeOf(u2), 2);
+    try expectEqual(@bitSizeOf(u8), @sizeOf(u8) * 8);
     try expect(@bitSizeOf(struct {
         a: u2,
     }) == 8);

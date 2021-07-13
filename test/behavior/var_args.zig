@@ -1,4 +1,5 @@
 const expect = @import("std").testing.expect;
+const expectEqual = @import("std").testing.expectEqual;
 
 fn add(args: anytype) i32 {
     var sum = @as(i32, 0);
@@ -12,9 +13,9 @@ fn add(args: anytype) i32 {
 }
 
 test "add arbitrary args" {
-    try expect(add(.{ @as(i32, 1), @as(i32, 2), @as(i32, 3), @as(i32, 4) }) == 10);
-    try expect(add(.{@as(i32, 1234)}) == 1234);
-    try expect(add(.{}) == 0);
+    try expectEqual(add(.{ @as(i32, 1), @as(i32, 2), @as(i32, 3), @as(i32, 4) }), 10);
+    try expectEqual(add(.{@as(i32, 1234)}), 1234);
+    try expectEqual(add(.{}), 0);
 }
 
 fn readFirstVarArg(args: anytype) void {
@@ -26,9 +27,9 @@ test "send void arg to var args" {
 }
 
 test "pass args directly" {
-    try expect(addSomeStuff(.{ @as(i32, 1), @as(i32, 2), @as(i32, 3), @as(i32, 4) }) == 10);
-    try expect(addSomeStuff(.{@as(i32, 1234)}) == 1234);
-    try expect(addSomeStuff(.{}) == 0);
+    try expectEqual(addSomeStuff(.{ @as(i32, 1), @as(i32, 2), @as(i32, 3), @as(i32, 4) }), 10);
+    try expectEqual(addSomeStuff(.{@as(i32, 1234)}), 1234);
+    try expectEqual(addSomeStuff(.{}), 0);
 }
 
 fn addSomeStuff(args: anytype) i32 {
@@ -36,24 +37,24 @@ fn addSomeStuff(args: anytype) i32 {
 }
 
 test "runtime parameter before var args" {
-    try expect((try extraFn(10, .{})) == 0);
-    try expect((try extraFn(10, .{false})) == 1);
-    try expect((try extraFn(10, .{ false, true })) == 2);
+    try expectEqual((try extraFn(10, .{})), 0);
+    try expectEqual((try extraFn(10, .{false})), 1);
+    try expectEqual((try extraFn(10, .{ false, true })), 2);
 
     comptime {
-        try expect((try extraFn(10, .{})) == 0);
-        try expect((try extraFn(10, .{false})) == 1);
-        try expect((try extraFn(10, .{ false, true })) == 2);
+        try expectEqual((try extraFn(10, .{})), 0);
+        try expectEqual((try extraFn(10, .{false})), 1);
+        try expectEqual((try extraFn(10, .{ false, true })), 2);
     }
 }
 
 fn extraFn(extra: u32, args: anytype) !usize {
     _ = extra;
     if (args.len >= 1) {
-        try expect(args[0] == false);
+        try expectEqual(args[0], false);
     }
     if (args.len >= 2) {
-        try expect(args[1] == true);
+        try expectEqual(args[1], true);
     }
     return args.len;
 }

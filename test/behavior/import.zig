@@ -7,7 +7,7 @@ test "call fn via namespace lookup" {
 }
 
 test "importing the same thing gives the same import" {
-    try expect(@import("std") == @import("std"));
+    try expectEqual(@import("std"), @import("std"));
 }
 
 test "import in non-toplevel scope" {

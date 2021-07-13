@@ -8,5 +8,5 @@ fn getA() A {
 
 test "bug 1025" {
     const a = getA();
-    try @import("std").testing.expect(a.B == u8);
+    try @import("std").testing.expectEqual(a.B, u8);
 }

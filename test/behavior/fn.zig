@@ -5,7 +5,7 @@ const expect = testing.expect;
 const expectEqual = testing.expectEqual;
 
 test "params" {
-    try expect(testParamsAdd(22, 11) == 33);
+    try expectEqual(testParamsAdd(22, 11), 33);
 }
 fn testParamsAdd(a: i32, b: i32) i32 {
     return a + b;
@@ -26,32 +26,32 @@ fn voidFun(a: i32, b: void, c: i32, d: void) !void {
     _ = d;
     const v = b;
     const vv: void = if (a == 1) v else {};
-    try expect(a + c == 3);
+    try expectEqual(a + c, 3);
     return vv;
 }
 
 test "mutable local variables" {
     var zero: i32 = 0;
-    try expect(zero == 0);
+    try expectEqual(zero, 0);
 
     var i = @as(i32, 0);
     while (i != 3) {
         i += 1;
     }
-    try expect(i == 3);
+    try expectEqual(i, 3);
 }
 
 test "separate block scopes" {
     {
         const no_conflict: i32 = 5;
-        try expect(no_conflict == 5);
+        try expectEqual(no_conflict, 5);
     }
 
     const c = x: {
         const no_conflict = @as(i32, 10);
         break :x no_conflict;
     };
-    try expect(c == 10);
+    try expectEqual(c, 10);
 }
 
 test "call function with empty string" {
@@ -66,7 +66,7 @@ fn @"weird function name"() i32 {
     return 1234;
 }
 test "weird function name" {
-    try expect(@"weird function name"() == 1234);
+    try expectEqual(@"weird function name"(), 1234);
 }
 
 test "implicit cast function unreachable return" {
@@ -89,7 +89,7 @@ test "function pointers" {
         fn4,
     };
     for (fns) |f, i| {
-        try expect(f() == @intCast(u32, i) + 5);
+        try expectEqual(f(), @intCast(u32, i) + 5);
     }
 }
 fn fn1() u32 {
@@ -111,7 +111,7 @@ test "number literal as an argument" {
 }
 
 fn numberLiteralArg(a: anytype) !void {
-    try expect(a == 3);
+    try expectEqual(a, 3);
 }
 
 test "assign inline fn to const variable" {
@@ -122,7 +122,7 @@ test "assign inline fn to const variable" {
 inline fn inlineFn() void {}
 
 test "pass by non-copying value" {
-    try expect(addPointCoords(Point{ .x = 1, .y = 2 }) == 3);
+    try expectEqual(addPointCoords(Point{ .x = 1, .y = 2 }), 3);
 }
 
 const Point = struct {
@@ -135,17 +135,17 @@ fn addPointCoords(pt: Point) i32 {
 }
 
 test "pass by non-copying value through var arg" {
-    try expect((try addPointCoordsVar(Point{ .x = 1, .y = 2 })) == 3);
+    try expectEqual((try addPointCoordsVar(Point{ .x = 1, .y = 2 })), 3);
 }
 
 fn addPointCoordsVar(pt: anytype) !i32 {
-    comptime try expect(@TypeOf(pt) == Point);
+    comptime try expectEqual(@TypeOf(pt), Point);
     return pt.x + pt.y;
 }
 
 test "pass by non-copying value as method" {
     var pt = Point2{ .x = 1, .y = 2 };
-    try expect(pt.addPointCoords() == 3);
+    try expectEqual(pt.addPointCoords(), 3);
 }
 
 const Point2 = struct {
@@ -159,7 +159,7 @@ const Point2 = struct {
 
 test "pass by non-copying value as method, which is generic" {
     var pt = Point3{ .x = 1, .y = 2 };
-    try expect(pt.addPointCoords(i32) == 3);
+    try expectEqual(pt.addPointCoords(i32), 3);
 }
 
 const Point3 = struct {
@@ -175,7 +175,7 @@ const Point3 = struct {
 test "pass by non-copying value as method, at comptime" {
     comptime {
         var pt = Point2{ .x = 1, .y = 2 };
-        try expect(pt.addPointCoords() == 3);
+        try expectEqual(pt.addPointCoords(), 3);
     }
 }
 
@@ -191,7 +191,7 @@ fn outer(y: u32) fn (u32) u32 {
 
 test "return inner function which references comptime variable of outer function" {
     var func = outer(10);
-    try expect(func(3) == 7);
+    try expectEqual(func(3), 7);
 }
 
 test "extern struct with stdcallcc fn pointer" {
@@ -205,7 +205,7 @@ test "extern struct with stdcallcc fn pointer" {
 
     var s: S = undefined;
     s.ptr = S.foo;
-    try expect(s.ptr() == 1234);
+    try expectEqual(s.ptr(), 1234);
 }
 
 test "implicit cast fn call result to optional in field result" {
@@ -214,7 +214,7 @@ test "implicit cast fn call result to optional in field result" {
             var x = Foo{
                 .field = optionalPtr(),
             };
-            try expect(x.field.?.* == 999);
+            try expectEqual(x.field.?.*, 999);
         }
 
         const glob: i32 = 999;
@@ -257,9 +257,9 @@ test "function call with anon list literal" {
         }
 
         fn consumeVec(vec: [3]f32) !void {
-            try expect(vec[0] == 9);
-            try expect(vec[1] == 8);
-            try expect(vec[2] == 7);
+            try expectEqual(vec[0], 9);
+            try expectEqual(vec[1], 8);
+            try expectEqual(vec[2], 7);
         }
     };
     try S.doTheTest();
@@ -270,8 +270,8 @@ test "ability to give comptime types and non comptime types to same parameter" {
     const S = struct {
         fn doTheTest() !void {
             var x: i32 = 1;
-            try expect(foo(x) == 10);
-            try expect(foo(i32) == 20);
+            try expectEqual(foo(x), 10);
+            try expectEqual(foo(i32), 20);
         }
 
         fn foo(arg: anytype) i32 {

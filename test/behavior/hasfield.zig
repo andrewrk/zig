@@ -1,4 +1,5 @@
 const expect = @import("std").testing.expect;
+const expectEqual = @import("std").testing.expectEqual;
 const builtin = @import("builtin");
 
 test "@hasField" {
@@ -8,10 +9,10 @@ test "@hasField" {
 
         pub const nope = 1;
     };
-    try expect(@hasField(struc, "a") == true);
-    try expect(@hasField(struc, "b") == true);
-    try expect(@hasField(struc, "non-existant") == false);
-    try expect(@hasField(struc, "nope") == false);
+    try expectEqual(@hasField(struc, "a"), true);
+    try expectEqual(@hasField(struc, "b"), true);
+    try expectEqual(@hasField(struc, "non-existant"), false);
+    try expectEqual(@hasField(struc, "nope"), false);
 
     const unin = union {
         a: u64,
@@ -19,10 +20,10 @@ test "@hasField" {
 
         pub const nope = 1;
     };
-    try expect(@hasField(unin, "a") == true);
-    try expect(@hasField(unin, "b") == true);
-    try expect(@hasField(unin, "non-existant") == false);
-    try expect(@hasField(unin, "nope") == false);
+    try expectEqual(@hasField(unin, "a"), true);
+    try expectEqual(@hasField(unin, "b"), true);
+    try expectEqual(@hasField(unin, "non-existant"), false);
+    try expectEqual(@hasField(unin, "nope"), false);
 
     const enm = enum {
         a,
@@ -30,8 +31,8 @@ test "@hasField" {
 
         pub const nope = 1;
     };
-    try expect(@hasField(enm, "a") == true);
-    try expect(@hasField(enm, "b") == true);
-    try expect(@hasField(enm, "non-existant") == false);
-    try expect(@hasField(enm, "nope") == false);
+    try expectEqual(@hasField(enm, "a"), true);
+    try expectEqual(@hasField(enm, "b"), true);
+    try expectEqual(@hasField(enm, "non-existant"), false);
+    try expectEqual(@hasField(enm, "nope"), false);
 }

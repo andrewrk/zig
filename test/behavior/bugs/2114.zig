@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 const math = std.math;
 
 fn ctz(x: anytype) usize {
@@ -12,8 +13,8 @@ test "fixed" {
 }
 
 fn testClz() !void {
-    try expect(ctz(@as(u128, 0x40000000000000000000000000000000)) == 126);
-    try expect(math.rotl(u128, @as(u128, 0x40000000000000000000000000000000), @as(u8, 1)) == @as(u128, 0x80000000000000000000000000000000));
-    try expect(ctz(@as(u128, 0x80000000000000000000000000000000)) == 127);
-    try expect(ctz(math.rotl(u128, @as(u128, 0x40000000000000000000000000000000), @as(u8, 1))) == 127);
+    try expectEqual(ctz(@as(u128, 0x40000000000000000000000000000000)), 126);
+    try expectEqual(math.rotl(u128, @as(u128, 0x40000000000000000000000000000000), @as(u8, 1)), @as(u128, 0x80000000000000000000000000000000));
+    try expectEqual(ctz(@as(u128, 0x80000000000000000000000000000000)), 127);
+    try expectEqual(ctz(math.rotl(u128, @as(u128, 0x40000000000000000000000000000000), @as(u8, 1))), 127);
 }

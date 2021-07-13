@@ -26,7 +26,7 @@ fn firstEqlThird(a: i32, b: i32, c: i32) void {
 }
 
 test "else if expression" {
-    try expect(elseIfExpressionF(1) == 1);
+    try expectEqual(elseIfExpressionF(1), 1);
 }
 fn elseIfExpressionF(c: u8) u8 {
     if (c == 0) {
@@ -44,14 +44,14 @@ var global_with_err: anyerror!u32 = error.SomeError;
 
 test "unwrap mutable global var" {
     if (global_with_val) |v| {
-        try expect(v == 0);
+        try expectEqual(v, 0);
     } else |_| {
         unreachable;
     }
     if (global_with_err) |_| {
         unreachable;
     } else |e| {
-        try expect(e == error.SomeError);
+        try expectEqual(e, error.SomeError);
     }
 }
 
@@ -63,7 +63,7 @@ test "labeled break inside comptime if inside runtime if" {
             break :blk @as(i32, 42);
         };
     }
-    try expect(answer == 42);
+    try expectEqual(answer, 42);
 }
 
 test "const result loc, runtime if cond, else unreachable" {
@@ -74,7 +74,7 @@ test "const result loc, runtime if cond, else unreachable" {
 
     var t = true;
     const x = if (t) Num.Two else unreachable;
-    try expect(x == .Two);
+    try expectEqual(x, .Two);
 }
 
 test "if prongs cast to expected type instead of peer type resolution" {
@@ -82,11 +82,11 @@ test "if prongs cast to expected type instead of peer type resolution" {
         fn doTheTest(f: bool) !void {
             var x: i32 = 0;
             x = if (f) 1 else 2;
-            try expect(x == 2);
+            try expectEqual(x, 2);
 
             var b = true;
             const y: i32 = if (b) 1 else 2;
-            try expect(y == 1);
+            try expectEqual(y, 1);
         }
     };
     try S.doTheTest(false);

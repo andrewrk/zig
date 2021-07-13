@@ -24,7 +24,7 @@ test "top level fields" {
 
 test "call struct static method" {
     const result = StructWithNoFields.add(3, 4);
-    try expect(result == 7);
+    try expectEqual(result, 7);
 }
 
 test "return empty struct instance" {
@@ -37,7 +37,7 @@ fn returnEmptyStructInstance() StructWithNoFields {
 const should_be_11 = StructWithNoFields.add(5, 6);
 
 test "invoke static method in global scope" {
-    try expect(should_be_11 == 11);
+    try expectEqual(should_be_11, 11);
 }
 
 test "void struct fields" {
@@ -46,8 +46,8 @@ test "void struct fields" {
         .b = 1,
         .c = void{},
     };
-    try expect(foo.b == 1);
-    try expect(@sizeOf(VoidStructFieldsFoo) == 4);
+    try expectEqual(foo.b, 1);
+    try expectEqual(@sizeOf(VoidStructFieldsFoo), 4);
 }
 const VoidStructFieldsFoo = struct {
     a: void,
@@ -62,7 +62,7 @@ test "structs" {
     foo.b = foo.a == 1;
     try testFoo(foo);
     testMutation(&foo);
-    try expect(foo.c == 100);
+    try expectEqual(foo.c, 100);
 }
 const StructFoo = struct {
     a: i32,
@@ -95,7 +95,7 @@ test "struct point to self" {
 
     root.next = &node;
 
-    try expect(node.next.next.next.val.x == 1);
+    try expectEqual(node.next.next.next.val.x, 1);
 }
 
 test "struct byval assign" {
@@ -104,14 +104,14 @@ test "struct byval assign" {
 
     foo1.a = 1234;
     foo2.a = 0;
-    try expect(foo2.a == 0);
+    try expectEqual(foo2.a, 0);
     foo2 = foo1;
-    try expect(foo2.a == 1234);
+    try expectEqual(foo2.a, 1234);
 }
 
 fn structInitializer() void {
     const val = Val{ .x = 42 };
-    try expect(val.x == 42);
+    try expectEqual(val.x, 42);
 }
 
 test "fn call of struct field" {
@@ -128,14 +128,14 @@ test "fn call of struct field" {
         }
     };
 
-    try expect(S.callStructField(Foo{ .ptr = S.aFunc }) == 13);
+    try expectEqual(S.callStructField(Foo{ .ptr = S.aFunc }), 13);
 }
 
 test "store member function in variable" {
     const instance = MemberFnTestFoo{ .x = 1234 };
     const memberFn = MemberFnTestFoo.member;
     const result = memberFn(instance);
-    try expect(result == 1234);
+    try expectEqual(result, 1234);
 }
 const MemberFnTestFoo = struct {
     x: i32,
@@ -147,12 +147,12 @@ const MemberFnTestFoo = struct {
 test "call member function directly" {
     const instance = MemberFnTestFoo{ .x = 1234 };
     const result = MemberFnTestFoo.member(instance);
-    try expect(result == 1234);
+    try expectEqual(result, 1234);
 }
 
 test "member functions" {
     const r = MemberFnRand{ .seed = 1234 };
-    try expect(r.getSeed() == 1234);
+    try expectEqual(r.getSeed(), 1234);
 }
 const MemberFnRand = struct {
     seed: u32,
@@ -163,7 +163,7 @@ const MemberFnRand = struct {
 
 test "return struct byval from function" {
     const bar = makeBar(1234, 5678);
-    try expect(bar.y == 5678);
+    try expectEqual(bar.y, 5678);
 }
 const Bar = struct {
     x: i32,
@@ -178,7 +178,7 @@ fn makeBar(x: i32, y: i32) Bar {
 
 test "empty struct method call" {
     const es = EmptyStruct{};
-    try expect(es.method() == 1234);
+    try expectEqual(es.method(), 1234);
 }
 const EmptyStruct = struct {
     fn method(es: *const EmptyStruct) i32 {
@@ -196,7 +196,7 @@ fn testReturnEmptyStructFromFn() EmptyStruct2 {
 }
 
 test "pass slice of empty struct to fn" {
-    try expect(testPassSliceOfEmptyStructToFn(&[_]EmptyStruct2{EmptyStruct2{}}) == 1);
+    try expectEqual(testPassSliceOfEmptyStructToFn(&[_]EmptyStruct2{EmptyStruct2{}}), 1);
 }
 fn testPassSliceOfEmptyStructToFn(slice: []const EmptyStruct2) usize {
     return slice.len;
@@ -214,7 +214,7 @@ test "packed struct" {
     };
     foo.y += 1;
     const four = foo.x + foo.y;
-    try expect(four == 4);
+    try expectEqual(four, 4);
 }
 
 const BitField1 = packed struct {
@@ -231,17 +231,17 @@ const bit_field_1 = BitField1{
 
 test "bit field access" {
     var data = bit_field_1;
-    try expect(getA(&data) == 1);
-    try expect(getB(&data) == 2);
-    try expect(getC(&data) == 3);
-    comptime try expect(@sizeOf(BitField1) == 1);
+    try expectEqual(getA(&data), 1);
+    try expectEqual(getB(&data), 2);
+    try expectEqual(getC(&data), 3);
+    comptime try expectEqual(@sizeOf(BitField1), 1);
 
     data.b += 1;
-    try expect(data.b == 3);
+    try expectEqual(data.b, 3);
 
     data.a += 1;
-    try expect(data.a == 2);
-    try expect(data.b == 3);
+    try expectEqual(data.a, 2);
+    try expectEqual(data.b, 3);
 }
 
 fn getA(data: *const BitField1) u3 {
@@ -268,11 +268,11 @@ const Foo96Bits = packed struct {
 
 test "packed struct 24bits" {
     comptime {
-        try expect(@sizeOf(Foo24Bits) == 4);
+        try expectEqual(@sizeOf(Foo24Bits), 4);
         if (@sizeOf(usize) == 4) {
-            try expect(@sizeOf(Foo96Bits) == 12);
+            try expectEqual(@sizeOf(Foo96Bits), 12);
         } else {
-            try expect(@sizeOf(Foo96Bits) == 16);
+            try expectEqual(@sizeOf(Foo96Bits), 16);
         }
     }
 
@@ -283,28 +283,28 @@ test "packed struct 24bits" {
         .d = 0,
     };
     value.a += 1;
-    try expect(value.a == 1);
-    try expect(value.b == 0);
-    try expect(value.c == 0);
-    try expect(value.d == 0);
+    try expectEqual(value.a, 1);
+    try expectEqual(value.b, 0);
+    try expectEqual(value.c, 0);
+    try expectEqual(value.d, 0);
 
     value.b += 1;
-    try expect(value.a == 1);
-    try expect(value.b == 1);
-    try expect(value.c == 0);
-    try expect(value.d == 0);
+    try expectEqual(value.a, 1);
+    try expectEqual(value.b, 1);
+    try expectEqual(value.c, 0);
+    try expectEqual(value.d, 0);
 
     value.c += 1;
-    try expect(value.a == 1);
-    try expect(value.b == 1);
-    try expect(value.c == 1);
-    try expect(value.d == 0);
+    try expectEqual(value.a, 1);
+    try expectEqual(value.b, 1);
+    try expectEqual(value.c, 1);
+    try expectEqual(value.d, 0);
 
     value.d += 1;
-    try expect(value.a == 1);
-    try expect(value.b == 1);
-    try expect(value.c == 1);
-    try expect(value.d == 1);
+    try expectEqual(value.a, 1);
+    try expectEqual(value.b, 1);
+    try expectEqual(value.c, 1);
+    try expectEqual(value.d, 1);
 }
 
 const Foo32Bits = packed struct {
@@ -321,43 +321,43 @@ const FooArray24Bits = packed struct {
 // TODO revisit this test when doing https://github.com/ziglang/zig/issues/1512
 test "packed array 24bits" {
     comptime {
-        try expect(@sizeOf([9]Foo32Bits) == 9 * 4);
-        try expect(@sizeOf(FooArray24Bits) == 2 + 2 * 4 + 2);
+        try expectEqual(@sizeOf([9]Foo32Bits), 9 * 4);
+        try expectEqual(@sizeOf(FooArray24Bits), 2 + 2 * 4 + 2);
     }
 
     var bytes = [_]u8{0} ** (@sizeOf(FooArray24Bits) + 1);
     bytes[bytes.len - 1] = 0xaa;
     const ptr = &std.mem.bytesAsSlice(FooArray24Bits, bytes[0 .. bytes.len - 1])[0];
-    try expect(ptr.a == 0);
-    try expect(ptr.b[0].field == 0);
-    try expect(ptr.b[1].field == 0);
-    try expect(ptr.c == 0);
+    try expectEqual(ptr.a, 0);
+    try expectEqual(ptr.b[0].field, 0);
+    try expectEqual(ptr.b[1].field, 0);
+    try expectEqual(ptr.c, 0);
 
     ptr.a = maxInt(u16);
-    try expect(ptr.a == maxInt(u16));
-    try expect(ptr.b[0].field == 0);
-    try expect(ptr.b[1].field == 0);
-    try expect(ptr.c == 0);
+    try expectEqual(ptr.a, maxInt(u16));
+    try expectEqual(ptr.b[0].field, 0);
+    try expectEqual(ptr.b[1].field, 0);
+    try expectEqual(ptr.c, 0);
 
     ptr.b[0].field = maxInt(u24);
-    try expect(ptr.a == maxInt(u16));
-    try expect(ptr.b[0].field == maxInt(u24));
-    try expect(ptr.b[1].field == 0);
-    try expect(ptr.c == 0);
+    try expectEqual(ptr.a, maxInt(u16));
+    try expectEqual(ptr.b[0].field, maxInt(u24));
+    try expectEqual(ptr.b[1].field, 0);
+    try expectEqual(ptr.c, 0);
 
     ptr.b[1].field = maxInt(u24);
-    try expect(ptr.a == maxInt(u16));
-    try expect(ptr.b[0].field == maxInt(u24));
-    try expect(ptr.b[1].field == maxInt(u24));
-    try expect(ptr.c == 0);
+    try expectEqual(ptr.a, maxInt(u16));
+    try expectEqual(ptr.b[0].field, maxInt(u24));
+    try expectEqual(ptr.b[1].field, maxInt(u24));
+    try expectEqual(ptr.c, 0);
 
     ptr.c = maxInt(u16);
-    try expect(ptr.a == maxInt(u16));
-    try expect(ptr.b[0].field == maxInt(u24));
-    try expect(ptr.b[1].field == maxInt(u24));
-    try expect(ptr.c == maxInt(u16));
+    try expectEqual(ptr.a, maxInt(u16));
+    try expectEqual(ptr.b[0].field, maxInt(u24));
+    try expectEqual(ptr.b[1].field, maxInt(u24));
+    try expectEqual(ptr.c, maxInt(u16));
 
-    try expect(bytes[bytes.len - 1] == 0xaa);
+    try expectEqual(bytes[bytes.len - 1], 0xaa);
 }
 
 const FooStructAligned = packed struct {
@@ -371,17 +371,17 @@ const FooArrayOfAligned = packed struct {
 
 test "aligned array of packed struct" {
     comptime {
-        try expect(@sizeOf(FooStructAligned) == 2);
-        try expect(@sizeOf(FooArrayOfAligned) == 2 * 2);
+        try expectEqual(@sizeOf(FooStructAligned), 2);
+        try expectEqual(@sizeOf(FooArrayOfAligned), 2 * 2);
     }
 
     var bytes = [_]u8{0xbb} ** @sizeOf(FooArrayOfAligned);
     const ptr = &std.mem.bytesAsSlice(FooArrayOfAligned, bytes[0..])[0];
 
-    try expect(ptr.a[0].a == 0xbb);
-    try expect(ptr.a[0].b == 0xbb);
-    try expect(ptr.a[1].a == 0xbb);
-    try expect(ptr.a[1].b == 0xbb);
+    try expectEqual(ptr.a[0].a, 0xbb);
+    try expectEqual(ptr.a[0].b, 0xbb);
+    try expectEqual(ptr.a[1].a, 0xbb);
+    try expectEqual(ptr.a[1].b, 0xbb);
 }
 
 test "runtime struct initialization of bitfield" {
@@ -394,10 +394,10 @@ test "runtime struct initialization of bitfield" {
         .y = @intCast(u4, x2),
     };
 
-    try expect(s1.x == x1);
-    try expect(s1.y == x1);
-    try expect(s2.x == @intCast(u4, x2));
-    try expect(s2.y == @intCast(u4, x2));
+    try expectEqual(s1.x, x1);
+    try expectEqual(s1.y, x1);
+    try expectEqual(s2.x, @intCast(u4, x2));
+    try expectEqual(s2.y, @intCast(u4, x2));
 }
 
 var x1 = @as(u4, 1);
@@ -427,18 +427,18 @@ test "native bit field understands endianness" {
     @memcpy(&bytes, @ptrCast([*]u8, &all), 8);
     var bitfields = @ptrCast(*Bitfields, &bytes).*;
 
-    try expect(bitfields.f1 == 0x1111);
-    try expect(bitfields.f2 == 0x2222);
-    try expect(bitfields.f3 == 0x33);
-    try expect(bitfields.f4 == 0x44);
-    try expect(bitfields.f5 == 0x5);
-    try expect(bitfields.f6 == 0x6);
-    try expect(bitfields.f7 == 0x77);
+    try expectEqual(bitfields.f1, 0x1111);
+    try expectEqual(bitfields.f2, 0x2222);
+    try expectEqual(bitfields.f3, 0x33);
+    try expectEqual(bitfields.f4, 0x44);
+    try expectEqual(bitfields.f5, 0x5);
+    try expectEqual(bitfields.f6, 0x6);
+    try expectEqual(bitfields.f7, 0x77);
 }
 
 test "align 1 field before self referential align 8 field as slice return type" {
     const result = alloc(Expr);
-    try expect(result.len == 0);
+    try expectEqual(result.len, 0);
 }
 
 const Expr = union(enum) {
@@ -482,7 +482,7 @@ test "implicit cast packed struct field to const ptr" {
     var lup: LevelUpMove = undefined;
     lup.level = 12;
     const res = LevelUpMove.toInt(lup.level);
-    try expect(res == 12);
+    try expectEqual(res, 12);
 }
 
 test "pointer to packed struct member in a stack variable" {
@@ -493,9 +493,9 @@ test "pointer to packed struct member in a stack variable" {
 
     var s = S{ .a = 2, .b = 0 };
     var b_ptr = &s.b;
-    try expect(s.b == 0);
+    try expectEqual(s.b, 0);
     b_ptr.* = 2;
-    try expect(s.b == 2);
+    try expectEqual(s.b, 2);
 }
 
 test "non-byte-aligned array inside packed struct" {
@@ -525,7 +525,7 @@ test "packed struct with u0 field access" {
         f0: u0,
     };
     var s = S{ .f0 = 0 };
-    comptime try expect(s.f0 == 0);
+    comptime try expectEqual(s.f0, 0);
 }
 
 const S0 = struct {
@@ -544,7 +544,7 @@ var g_foo: S0 = S0.init();
 
 test "access to global struct fields" {
     g_foo.bar.value = 42;
-    try expect(g_foo.bar.value == 42);
+    try expectEqual(g_foo.bar.value, 42);
 }
 
 test "packed struct with fp fields" {
@@ -670,7 +670,7 @@ test "struct field init with catch" {
             var req = Foo{
                 .field = x catch undefined,
             };
-            try expect(req.field == 1);
+            try expectEqual(req.field, 1);
         }
 
         pub const Foo = extern struct {
@@ -689,8 +689,8 @@ test "packed struct with non-ABI-aligned field" {
     var s: S = undefined;
     s.x = 1;
     s.y = 42;
-    try expect(s.x == 1);
-    try expect(s.y == 42);
+    try expectEqual(s.x, 1);
+    try expectEqual(s.y, 42);
 }
 
 test "non-packed struct with u128 entry in union" {
@@ -706,10 +706,10 @@ test "non-packed struct with u128 entry in union" {
 
     var sx: S = undefined;
     var s = &sx;
-    try std.testing.expect(@ptrToInt(&s.f2) - @ptrToInt(&s.f1) == @offsetOf(S, "f2"));
+    try std.testing.expectEqual(@ptrToInt(&s.f2) - @ptrToInt(&s.f1), @offsetOf(S, "f2"));
     var v2 = U{ .Num = 123 };
     s.f2 = v2;
-    try std.testing.expect(s.f2.Num == 123);
+    try std.testing.expectEqual(s.f2.Num, 123);
 }
 
 test "packed struct field passed to generic function" {
@@ -729,7 +729,7 @@ test "packed struct field passed to generic function" {
     var p: S.P = undefined;
     p.b = 29;
     var loaded = S.genericReadPackedField(&p.b);
-    try expect(loaded == 29);
+    try expectEqual(loaded, 29);
 }
 
 test "anonymous struct literal syntax" {
@@ -744,8 +744,8 @@ test "anonymous struct literal syntax" {
                 .x = 1,
                 .y = 2,
             };
-            try expect(p.x == 1);
-            try expect(p.y == 2);
+            try expectEqual(p.x, 1);
+            try expectEqual(p.y, 2);
         }
     };
     try S.doTheTest();
@@ -763,11 +763,11 @@ test "fully anonymous struct" {
             });
         }
         fn dump(args: anytype) !void {
-            try expect(args.int == 1234);
-            try expect(args.float == 12.34);
+            try expectEqual(args.int, 1234);
+            try expectEqual(args.float, 12.34);
             try expect(args.b);
-            try expect(args.s[0] == 'h');
-            try expect(args.s[1] == 'i');
+            try expectEqual(args.s[0], 'h');
+            try expectEqual(args.s[1], 'i');
         }
     };
     try S.doTheTest();
@@ -780,11 +780,11 @@ test "fully anonymous list literal" {
             try dump(.{ @as(u32, 1234), @as(f64, 12.34), true, "hi" });
         }
         fn dump(args: anytype) !void {
-            try expect(args.@"0" == 1234);
-            try expect(args.@"1" == 12.34);
+            try expectEqual(args.@"0", 1234);
+            try expectEqual(args.@"1", 12.34);
             try expect(args.@"2");
-            try expect(args.@"3"[0] == 'h');
-            try expect(args.@"3"[1] == 'i');
+            try expectEqual(args.@"3"[0], 'h');
+            try expectEqual(args.@"3"[1], 'i');
         }
     };
     try S.doTheTest();
@@ -793,9 +793,9 @@ test "fully anonymous list literal" {
 
 test "anonymous struct literal assigned to variable" {
     var vec = .{ @as(i32, 22), @as(i32, 55), @as(i32, 99) };
-    try expect(vec.@"0" == 22);
-    try expect(vec.@"1" == 55);
-    try expect(vec.@"2" == 99);
+    try expectEqual(vec.@"0", 22);
+    try expectEqual(vec.@"1", 55);
+    try expectEqual(vec.@"2", 99);
 }
 
 test "struct with var field" {
@@ -807,8 +807,8 @@ test "struct with var field" {
         .x = 1,
         .y = 2,
     };
-    try expect(pt.x == 1);
-    try expect(pt.y == 2);
+    try expectEqual(pt.x, 1);
+    try expectEqual(pt.y, 2);
 }
 
 test "comptime struct field" {
@@ -818,7 +818,7 @@ test "comptime struct field" {
     };
 
     var foo: T = undefined;
-    comptime try expect(foo.b == 1234);
+    comptime try expectEqual(foo.b, 1234);
 }
 
 test "anon struct literal field value initialized with fn call" {
@@ -841,7 +841,7 @@ test "self-referencing struct via array member" {
     };
     var x: T = undefined;
     x = T{ .children = .{&x} };
-    try expect(x.children[0] == &x);
+    try expectEqual(x.children[0], &x);
 }
 
 test "struct with union field" {
@@ -879,14 +879,14 @@ test "type coercion of anon struct literal to struct" {
             const t1 = .{ .A = y, .B = "foo", .C = {} };
             const y0: S2 = t0;
             var y1: S2 = t1;
-            try expect(y0.A == 123);
+            try expectEqual(y0.A, 123);
             try expect(std.mem.eql(u8, y0.B, "foo"));
-            try expect(y0.C == {});
-            try expect(y0.D.field == 1234);
-            try expect(y1.A == y);
+            try expectEqual(y0.C, {});
+            try expectEqual(y0.D.field, 1234);
+            try expectEqual(y1.A, y);
             try expect(std.mem.eql(u8, y1.B, "foo"));
-            try expect(y1.C == {});
-            try expect(y1.D.field == 1234);
+            try expectEqual(y1.C, {});
+            try expectEqual(y1.D.field, 1234);
         }
     };
     try S.doTheTest();
@@ -912,14 +912,14 @@ test "type coercion of pointer to anon struct literal to pointer to struct" {
             const t1 = &.{ .A = y, .B = "foo", .C = {} };
             const y0: *const S2 = t0;
             var y1: *const S2 = t1;
-            try expect(y0.A == 123);
+            try expectEqual(y0.A, 123);
             try expect(std.mem.eql(u8, y0.B, "foo"));
-            try expect(y0.C == {});
-            try expect(y0.D.field == 1234);
-            try expect(y1.A == y);
+            try expectEqual(y0.C, {});
+            try expectEqual(y0.D.field, 1234);
+            try expectEqual(y1.A, y);
             try expect(std.mem.eql(u8, y1.B, "foo"));
-            try expect(y1.C == {});
-            try expect(y1.D.field == 1234);
+            try expectEqual(y1.C, {});
+            try expectEqual(y1.D.field, 1234);
         }
     };
     try S.doTheTest();
@@ -942,9 +942,9 @@ test "packed struct with undefined initializers" {
             p = P{ .a = 2, .b = 4, .c = 6 };
             // Make sure the compiler doesn't touch the unprefixed fields.
             // Use expect since i386-linux doesn't like expectEqual
-            try expect(p.a == 2);
-            try expect(p.b == 4);
-            try expect(p.c == 6);
+            try expectEqual(p.a, 2);
+            try expectEqual(p.b, 4);
+            try expectEqual(p.c, 6);
         }
     };
 

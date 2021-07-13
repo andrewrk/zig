@@ -5,45 +5,45 @@ const testing = std.testing;
 
 fn testTypes(comptime types: []const type) !void {
     inline for (types) |testType| {
-        try testing.expect(testType == @Type(@typeInfo(testType)));
+        try testing.expectEqual(testType, @Type(@typeInfo(testType)));
     }
 }
 
 test "Type.MetaType" {
-    try testing.expect(type == @Type(TypeInfo{ .Type = undefined }));
+    try testing.expectEqual(type, @Type(TypeInfo{ .Type = undefined }));
     try testTypes(&[_]type{type});
 }
 
 test "Type.Void" {
-    try testing.expect(void == @Type(TypeInfo{ .Void = undefined }));
+    try testing.expectEqual(void, @Type(TypeInfo{ .Void = undefined }));
     try testTypes(&[_]type{void});
 }
 
 test "Type.Bool" {
-    try testing.expect(bool == @Type(TypeInfo{ .Bool = undefined }));
+    try testing.expectEqual(bool, @Type(TypeInfo{ .Bool = undefined }));
     try testTypes(&[_]type{bool});
 }
 
 test "Type.NoReturn" {
-    try testing.expect(noreturn == @Type(TypeInfo{ .NoReturn = undefined }));
+    try testing.expectEqual(noreturn, @Type(TypeInfo{ .NoReturn = undefined }));
     try testTypes(&[_]type{noreturn});
 }
 
 test "Type.Int" {
-    try testing.expect(u1 == @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .unsigned, .bits = 1 } }));
-    try testing.expect(i1 == @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .signed, .bits = 1 } }));
-    try testing.expect(u8 == @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .unsigned, .bits = 8 } }));
-    try testing.expect(i8 == @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .signed, .bits = 8 } }));
-    try testing.expect(u64 == @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .unsigned, .bits = 64 } }));
-    try testing.expect(i64 == @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .signed, .bits = 64 } }));
+    try testing.expectEqual(u1, @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .unsigned, .bits = 1 } }));
+    try testing.expectEqual(i1, @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .signed, .bits = 1 } }));
+    try testing.expectEqual(u8, @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .unsigned, .bits = 8 } }));
+    try testing.expectEqual(i8, @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .signed, .bits = 8 } }));
+    try testing.expectEqual(u64, @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .unsigned, .bits = 64 } }));
+    try testing.expectEqual(i64, @Type(TypeInfo{ .Int = TypeInfo.Int{ .signedness = .signed, .bits = 64 } }));
     try testTypes(&[_]type{ u8, u32, i64 });
 }
 
 test "Type.Float" {
-    try testing.expect(f16 == @Type(TypeInfo{ .Float = TypeInfo.Float{ .bits = 16 } }));
-    try testing.expect(f32 == @Type(TypeInfo{ .Float = TypeInfo.Float{ .bits = 32 } }));
-    try testing.expect(f64 == @Type(TypeInfo{ .Float = TypeInfo.Float{ .bits = 64 } }));
-    try testing.expect(f128 == @Type(TypeInfo{ .Float = TypeInfo.Float{ .bits = 128 } }));
+    try testing.expectEqual(f16, @Type(TypeInfo{ .Float = TypeInfo.Float{ .bits = 16 } }));
+    try testing.expectEqual(f32, @Type(TypeInfo{ .Float = TypeInfo.Float{ .bits = 32 } }));
+    try testing.expectEqual(f64, @Type(TypeInfo{ .Float = TypeInfo.Float{ .bits = 64 } }));
+    try testing.expectEqual(f128, @Type(TypeInfo{ .Float = TypeInfo.Float{ .bits = 128 } }));
     try testTypes(&[_]type{ f16, f32, f64, f128 });
 }
 
@@ -141,7 +141,7 @@ test "@Type create slice with null sentinel" {
             .sentinel = null,
         },
     });
-    try testing.expect(Slice == []align(8) const *i32);
+    try testing.expectEqual(Slice, []align(8) const *i32);
 }
 test "@Type picks up the sentinel value from TypeInfo" {
     try testTypes(&[_]type{

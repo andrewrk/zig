@@ -31,11 +31,11 @@ test "for loop with pointer elem var" {
 
     for (source) |*c, i| {
         _ = i;
-        try expect(@TypeOf(c) == *const u8);
+        try expectEqual(@TypeOf(c), *const u8);
     }
     for (target) |*c, i| {
         _ = i;
-        try expect(@TypeOf(c) == *u8);
+        try expectEqual(@TypeOf(c), *u8);
     }
 }
 
@@ -98,7 +98,7 @@ fn testBreakOuter() !void {
             break :outer;
         }
     }
-    try expect(count == 1);
+    try expectEqual(count, 1);
 }
 
 test "continue outer for loop" {
@@ -115,7 +115,7 @@ fn testContinueOuter() !void {
             continue :outer;
         }
     }
-    try expect(counter == array.len);
+    try expectEqual(counter, array.len);
 }
 
 test "2 break statements and an else" {
@@ -171,8 +171,8 @@ test "for on slice with allowzero ptr" {
     const S = struct {
         fn doTheTest(slice: []const u8) !void {
             var ptr = @ptrCast([*]allowzero const u8, slice.ptr)[0..slice.len];
-            for (ptr) |x, i| try expect(x == i + 1);
-            for (ptr) |*x, i| try expect(x.* == i + 1);
+            for (ptr) |x, i| try expectEqual(i + 1, x);
+            for (ptr) |*x, i| try expectEqual(i + 1, x.*);
         }
     };
     try S.doTheTest(&[_]u8{ 1, 2, 3, 4 });

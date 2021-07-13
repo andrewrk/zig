@@ -1,4 +1,5 @@
 const expect = @import("std").testing.expect;
+const expectEqual = @import("std").testing.expectEqual;
 
 test "@fieldParentPtr non-first field" {
     try testParentFieldPtr(&foo.c);
@@ -25,17 +26,17 @@ const foo = Foo{
 };
 
 fn testParentFieldPtr(c: *const i32) !void {
-    try expect(c == &foo.c);
+    try expectEqual(c, &foo.c);
 
     const base = @fieldParentPtr(Foo, "c", c);
-    try expect(base == &foo);
-    try expect(&base.c == c);
+    try expectEqual(base, &foo);
+    try expectEqual(&base.c, c);
 }
 
 fn testParentFieldPtrFirst(a: *const bool) !void {
-    try expect(a == &foo.a);
+    try expectEqual(a, &foo.a);
 
     const base = @fieldParentPtr(Foo, "a", a);
-    try expect(base == &foo);
-    try expect(&base.a == a);
+    try expectEqual(base, &foo);
+    try expectEqual(&base.a, a);
 }

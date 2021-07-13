@@ -13,7 +13,7 @@ const C = struct {};
 
 test "tagged union with all void fields but a meaningful tag" {
     var a: A = A{ .b = B{ .c = C{} } };
-    try std.testing.expect(@as(std.meta.Tag(B), a.b) == std.meta.Tag(B).c);
+    try std.testing.expectEqual(@as(std.meta.Tag(B), a.b), std.meta.Tag(B).c);
     a = A{ .b = B.None };
-    try std.testing.expect(@as(std.meta.Tag(B), a.b) == std.meta.Tag(B).None);
+    try std.testing.expectEqual(@as(std.meta.Tag(B), a.b), std.meta.Tag(B).None);
 }

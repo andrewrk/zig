@@ -19,7 +19,7 @@ pub fn baz() anyerror!i32 {
 }
 
 test "error wrapping" {
-    try expect((baz() catch unreachable) == 15);
+    try expectEqual((baz() catch unreachable), 15);
 }
 
 fn gimmeItBroke() []const u8 {
@@ -47,8 +47,8 @@ fn shouldBeNotEqual(a: anyerror, b: anyerror) void {
 test "error binary operator" {
     const a = errBinaryOperatorG(true) catch 3;
     const b = errBinaryOperatorG(false) catch 3;
-    try expect(a == 3);
-    try expect(b == 10);
+    try expectEqual(a, 3);
+    try expectEqual(b, 10);
 }
 fn errBinaryOperatorG(x: bool) anyerror!isize {
     return if (x) error.ItBroke else @as(isize, 10);
@@ -56,7 +56,7 @@ fn errBinaryOperatorG(x: bool) anyerror!isize {
 
 test "unwrap simple value from error" {
     const i = unwrapSimpleValueFromErrorDo() catch unreachable;
-    try expect(i == 13);
+    try expectEqual(i, 13);
 }
 fn unwrapSimpleValueFromErrorDo() anyerror!isize {
     return 13;
@@ -82,10 +82,10 @@ test "error union type " {
 
 fn testErrorUnionType() !void {
     const x: anyerror!i32 = 1234;
-    if (x) |value| try expect(value == 1234) else |_| unreachable;
-    try expect(@typeInfo(@TypeOf(x)) == .ErrorUnion);
-    try expect(@typeInfo(@typeInfo(@TypeOf(x)).ErrorUnion.error_set) == .ErrorSet);
-    try expect(@typeInfo(@TypeOf(x)).ErrorUnion.error_set == anyerror);
+    if (x) |value| try expectEqual(value, 1234) else |_| unreachable;
+    try expectEqual(@typeInfo(@TypeOf(x)), .ErrorUnion);
+    try expectEqual(@typeInfo(@typeInfo(@TypeOf(x)).ErrorUnion.error_set), .ErrorSet);
+    try expectEqual(@typeInfo(@TypeOf(x)).ErrorUnion.error_set, anyerror);
 }
 
 test "error set type" {
@@ -99,13 +99,13 @@ const MyErrSet = error{
 };
 
 fn testErrorSetType() !void {
-    try expect(@typeInfo(MyErrSet).ErrorSet.?.len == 2);
+    try expectEqual(@typeInfo(MyErrSet).ErrorSet.?.len, 2);
 
     const a: MyErrSet!i32 = 5678;
     const b: MyErrSet!i32 = MyErrSet.OutOfMemory;
-    try expect(b catch error.OutOfMemory == error.OutOfMemory);
+    try expectEqual(b catch error.OutOfMemory, error.OutOfMemory);
 
-    if (a) |value| try expect(value == 5678) else |err| switch (err) {
+    if (a) |value| try expectEqual(value, 5678) else |err| switch (err) {
         error.OutOfMemory => unreachable,
         error.FileNotFound => unreachable,
     }
@@ -128,7 +128,7 @@ const Set2 = error{
 fn testExplicitErrorSetCast(set1: Set1) !void {
     var x = @errSetCast(Set2, set1);
     var y = @errSetCast(Set1, x);
-    try expect(y == error.A);
+    try expectEqual(y, error.A);
 }
 
 test "comptime test error for empty error set" {
@@ -139,7 +139,7 @@ test "comptime test error for empty error set" {
 const EmptyErrorSet = error{};
 
 fn testComptimeTestErrorEmptySet(x: EmptyErrorSet!i32) !void {
-    if (x) |v| try expect(v == 1234) else |err| {
+    if (x) |v| try expectEqual(v, 1234) else |err| {
         _ = err;
         @compileError("bad");
     }
@@ -147,7 +147,7 @@ fn testComptimeTestErrorEmptySet(x: EmptyErrorSet!i32) !void {
 
 test "syntax: optional operator in front of error union operator" {
     comptime {
-        try expect(?(anyerror!i32) == ?(anyerror!i32));
+        try expectEqual(?(anyerror!i32), ?(anyerror!i32));
     }
 }
 
@@ -182,7 +182,7 @@ fn testErrorUnionPeerTypeResolution(x: i32) !void {
     if (y) |_| {
         @panic("expected error");
     } else |e| {
-        try expect(e == error.A);
+        try expectEqual(e, error.A);
     }
 }
 
@@ -292,11 +292,11 @@ test "nested error union function call in optional unwrap" {
             return null;
         }
     };
-    try expect((try S.errorable()) == 1234);
+    try expectEqual((try S.errorable()), 1234);
     try expectError(error.Failure, S.errorable2());
     try expectError(error.Other, S.errorable3());
     comptime {
-        try expect((try S.errorable()) == 1234);
+        try expectEqual((try S.errorable()), 1234);
         try expectError(error.Failure, S.errorable2());
         try expectError(error.Other, S.errorable3());
     }
@@ -313,7 +313,7 @@ test "widen cast integer payload of error union function call" {
             return 1234;
         }
     };
-    try expect((try S.errorable()) == 1234);
+    try expectEqual((try S.errorable()), 1234);
 }
 
 test "return function call to error set from error union function" {
@@ -331,14 +331,14 @@ test "return function call to error set from error union function" {
 }
 
 test "optional error set is the same size as error set" {
-    comptime try expect(@sizeOf(?anyerror) == @sizeOf(anyerror));
+    comptime try expectEqual(@sizeOf(?anyerror), @sizeOf(anyerror));
     const S = struct {
         fn returnsOptErrSet() ?anyerror {
             return null;
         }
     };
-    try expect(S.returnsOptErrSet() == null);
-    comptime try expect(S.returnsOptErrSet() == null);
+    try expectEqual(S.returnsOptErrSet(), null);
+    comptime try expectEqual(S.returnsOptErrSet(), null);
 }
 
 test "debug info for optional error set" {

@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 const is_x86_64_linux = std.Target.current.cpu.arch == .x86_64 and std.Target.current.os.tag == .linux;
 
@@ -15,7 +16,7 @@ comptime {
 
 test "module level assembly" {
     if (is_x86_64_linux) {
-        try expect(this_is_my_alias() == 1234);
+        try expectEqual(this_is_my_alias(), 1234);
     }
 }
 

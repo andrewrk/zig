@@ -1,9 +1,10 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 test "struct contains null pointer which contains original struct" {
     var x: ?*NodeLineComment = null;
-    try expect(x == null);
+    try expectEqual(x, null);
 }
 
 pub const Node = struct {

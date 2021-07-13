@@ -1,4 +1,5 @@
 const expect = @import("std").testing.expect;
+const expectEqual = @import("std").testing.expectEqual;
 
 fn foo(id: u64) !i32 {
     return switch (id) {
@@ -17,6 +18,6 @@ fn getErrInt() anyerror!i32 {
 }
 
 test "ir block deps" {
-    try expect((foo(1) catch unreachable) == 0);
-    try expect((foo(2) catch unreachable) == 0);
+    try expectEqual((foo(1) catch unreachable), 0);
+    try expectEqual((foo(2) catch unreachable), 0);
 }

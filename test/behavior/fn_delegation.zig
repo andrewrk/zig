@@ -1,4 +1,5 @@
 const expect = @import("std").testing.expect;
+const expectEqual = @import("std").testing.expectEqual;
 
 const Foo = struct {
     a: u64 = 10,
@@ -32,8 +33,8 @@ fn custom(comptime T: type, comptime num: u64) fn (T) u64 {
 
 test "fn delegation" {
     const foo = Foo{};
-    try expect(foo.one() == 11);
-    try expect(foo.two() == 12);
-    try expect(foo.three() == 13);
-    try expect(foo.four() == 14);
+    try expectEqual(foo.one(), 11);
+    try expectEqual(foo.two(), 12);
+    try expectEqual(foo.three(), 13);
+    try expectEqual(foo.four(), 14);
 }

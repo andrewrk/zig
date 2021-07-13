@@ -2,6 +2,7 @@ const std = @import("std");
 const debug = std.debug;
 const testing = std.testing;
 const expect = testing.expect;
+const expectEqual = testing.expectEqual;
 
 var argv: [*]const [*]const u8 = undefined;
 
@@ -16,7 +17,7 @@ test "const slice child" {
 }
 
 fn foo(args: [][]const u8) !void {
-    try expect(args.len == 3);
+    try expectEqual(args.len, 3);
     try expect(streql(args[0], "one"));
     try expect(streql(args[1], "two"));
     try expect(streql(args[2], "three"));

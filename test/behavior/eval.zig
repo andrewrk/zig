@@ -3,7 +3,7 @@ const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 
 test "compile time recursion" {
-    try expect(some_data.len == 21);
+    try expectEqual(some_data.len, 21);
 }
 var some_data: [@intCast(usize, fibonacci(7))]u8 = undefined;
 fn fibonacci(x: i32) i32 {
@@ -16,7 +16,7 @@ fn unwrapAndAddOne(blah: ?i32) i32 {
 }
 const should_be_1235 = unwrapAndAddOne(1234);
 test "static add one" {
-    try expect(should_be_1235 == 1235);
+    try expectEqual(should_be_1235, 1235);
 }
 
 test "inlined loop" {
@@ -24,7 +24,7 @@ test "inlined loop" {
     comptime var sum = 0;
     inline while (i <= 5) : (i += 1)
         sum += i;
-    try expect(sum == 15);
+    try expectEqual(sum, 15);
 }
 
 fn gimme1or2(comptime a: bool) i32 {
@@ -34,12 +34,12 @@ fn gimme1or2(comptime a: bool) i32 {
     return z;
 }
 test "inline variable gets result of const if" {
-    try expect(gimme1or2(true) == 1);
-    try expect(gimme1or2(false) == 2);
+    try expectEqual(gimme1or2(true), 1);
+    try expectEqual(gimme1or2(false), 2);
 }
 
 test "static function evaluation" {
-    try expect(statically_added_number == 3);
+    try expectEqual(statically_added_number, 3);
 }
 const statically_added_number = staticAdd(1, 2);
 fn staticAdd(a: i32, b: i32) i32 {
@@ -47,8 +47,8 @@ fn staticAdd(a: i32, b: i32) i32 {
 }
 
 test "const expr eval on single expr blocks" {
-    try expect(constExprEvalOnSingleExprBlocksFn(1, true) == 3);
-    comptime try expect(constExprEvalOnSingleExprBlocksFn(1, true) == 3);
+    try expectEqual(constExprEvalOnSingleExprBlocksFn(1, true), 3);
+    comptime try expectEqual(constExprEvalOnSingleExprBlocksFn(1, true), 3);
 }
 
 fn constExprEvalOnSingleExprBlocksFn(x: i32, b: bool) i32 {
@@ -64,10 +64,10 @@ fn constExprEvalOnSingleExprBlocksFn(x: i32, b: bool) i32 {
 }
 
 test "statically initialized list" {
-    try expect(static_point_list[0].x == 1);
-    try expect(static_point_list[0].y == 2);
-    try expect(static_point_list[1].x == 3);
-    try expect(static_point_list[1].y == 4);
+    try expectEqual(static_point_list[0].x, 1);
+    try expectEqual(static_point_list[0].y, 2);
+    try expectEqual(static_point_list[1].x, 3);
+    try expectEqual(static_point_list[1].y, 4);
 }
 const Point = struct {
     x: i32,
@@ -85,8 +85,8 @@ fn makePoint(x: i32, y: i32) Point {
 }
 
 test "static eval list init" {
-    try expect(static_vec3.data[2] == 1.0);
-    try expect(vec3(0.0, 0.0, 3.0).data[2] == 3.0);
+    try expectEqual(static_vec3.data[2], 1.0);
+    try expectEqual(vec3(0.0, 0.0, 3.0).data[2], 3.0);
 }
 const static_vec3 = vec3(0.0, 0.0, 1.0);
 pub const Vec3 = struct {
@@ -104,12 +104,12 @@ pub fn vec3(x: f32, y: f32, z: f32) Vec3 {
 
 test "constant expressions" {
     var array: [array_size]u8 = undefined;
-    try expect(@sizeOf(@TypeOf(array)) == 20);
+    try expectEqual(@sizeOf(@TypeOf(array)), 20);
 }
 const array_size: u8 = 20;
 
 test "constant struct with negation" {
-    try expect(vertices[0].x == -0.6);
+    try expectEqual(vertices[0].x, -0.6);
 }
 const Vertex = struct {
     x: f32,
@@ -144,7 +144,7 @@ const vertices = [_]Vertex{
 
 test "statically initialized struct" {
     st_init_str_foo.x += 1;
-    try expect(st_init_str_foo.x == 14);
+    try expectEqual(st_init_str_foo.x, 14);
 }
 const StInitStrFoo = struct {
     x: i32,
@@ -157,7 +157,7 @@ var st_init_str_foo = StInitStrFoo{
 
 test "statically initalized array literal" {
     const y: [4]u8 = st_init_arr_lit_x;
-    try expect(y[3] == 4);
+    try expectEqual(y[3], 4);
 }
 const st_init_arr_lit_x = [_]u8{
     1,
@@ -169,15 +169,15 @@ const st_init_arr_lit_x = [_]u8{
 test "const slice" {
     comptime {
         const a = "1234567890";
-        try expect(a.len == 10);
+        try expectEqual(a.len, 10);
         const b = a[1..2];
-        try expect(b.len == 1);
-        try expect(b[0] == '2');
+        try expectEqual(b.len, 1);
+        try expectEqual(b[0], '2');
     }
 }
 
 test "try to trick eval with runtime if" {
-    try expect(testTryToTrickEvalWithRuntimeIf(true) == 10);
+    try expectEqual(testTryToTrickEvalWithRuntimeIf(true), 10);
 }
 
 fn testTryToTrickEvalWithRuntimeIf(b: bool) usize {
@@ -199,7 +199,7 @@ test "inlined loop has array literal with elided runtime scope on first iteratio
         _ = result;
     }
     comptime {
-        try expect(i == 2);
+        try expectEqual(i, 2);
     }
 }
 
@@ -270,14 +270,14 @@ fn performFn(comptime prefix_char: u8, start_value: i32) i32 {
 }
 
 test "comptime iterate over fn ptr list" {
-    try expect(performFn('t', 1) == 6);
-    try expect(performFn('o', 0) == 1);
-    try expect(performFn('w', 99) == 99);
+    try expectEqual(performFn('t', 1), 6);
+    try expectEqual(performFn('o', 0), 1);
+    try expectEqual(performFn('w', 99), 99);
 }
 
 test "eval @setRuntimeSafety at compile-time" {
     const result = comptime fnWithSetRuntimeSafety();
-    try expect(result == 1234);
+    try expectEqual(result, 1234);
 }
 
 fn fnWithSetRuntimeSafety() i32 {
@@ -287,7 +287,7 @@ fn fnWithSetRuntimeSafety() i32 {
 
 test "eval @setFloatMode at compile-time" {
     const result = comptime fnWithFloatMode();
-    try expect(result == 1234.0);
+    try expectEqual(result, 1234.0);
 }
 
 fn fnWithFloatMode() f32 {
@@ -308,15 +308,15 @@ var simple_struct = SimpleStruct{ .field = 1234 };
 const bound_fn = simple_struct.method;
 
 test "call method on bound fn referring to var instance" {
-    try expect(bound_fn() == 1237);
+    try expectEqual(bound_fn(), 1237);
 }
 
 test "ptr to local array argument at comptime" {
     comptime {
         var bytes: [10]u8 = undefined;
         modifySomeBytes(bytes[0..]);
-        try expect(bytes[0] == 'a');
-        try expect(bytes[9] == 'b');
+        try expectEqual(bytes[0], 'a');
+        try expectEqual(bytes[9], 'b');
     }
 }
 
@@ -344,9 +344,9 @@ fn testCompTimeUIntComparisons(x: u32) void {
 }
 
 test "const ptr to variable data changes at runtime" {
-    try expect(foo_ref.name[0] == 'a');
+    try expectEqual(foo_ref.name[0], 'a');
     foo_ref.name = "b";
-    try expect(foo_ref.name[0] == 'b');
+    try expectEqual(foo_ref.name[0], 'b');
 }
 
 const Foo = struct {
@@ -357,8 +357,8 @@ var foo_contents = Foo{ .name = "a" };
 const foo_ref = &foo_contents;
 
 test "create global array with for loop" {
-    try expect(global_array[5] == 5 * 5);
-    try expect(global_array[9] == 9 * 9);
+    try expectEqual(global_array[5], 5 * 5);
+    try expectEqual(global_array[9], 9 * 9);
 }
 
 const global_array = x: {
@@ -373,7 +373,7 @@ test "compile-time downcast when the bits fit" {
     comptime {
         const spartan_count: u16 = 255;
         const byte = @intCast(u8, spartan_count);
-        try expect(byte == 255);
+        try expectEqual(byte, 255);
     }
 }
 
@@ -381,10 +381,10 @@ const hi1 = "hi";
 const hi2 = hi1;
 test "const global shares pointer with other same one" {
     try assertEqualPtrs(&hi1[0], &hi2[0]);
-    comptime try expect(&hi1[0] == &hi2[0]);
+    comptime try expectEqual(&hi1[0], &hi2[0]);
 }
 fn assertEqualPtrs(ptr1: *const u8, ptr2: *const u8) !void {
-    try expect(ptr1 == ptr2);
+    try expectEqual(ptr1, ptr2);
 }
 
 test "@setEvalBranchQuota" {
@@ -396,29 +396,29 @@ test "@setEvalBranchQuota" {
         while (i < 1001) : (i += 1) {
             sum += i;
         }
-        try expect(sum == 500500);
+        try expectEqual(sum, 500500);
     }
 }
 
 test "float literal at compile time not lossy" {
-    try expect(16777216.0 + 1.0 == 16777217.0);
-    try expect(9007199254740992.0 + 1.0 == 9007199254740993.0);
+    try expectEqual(16777216.0 + 1.0, 16777217.0);
+    try expectEqual(9007199254740992.0 + 1.0, 9007199254740993.0);
 }
 
 test "f32 at compile time is lossy" {
-    try expect(@as(f32, 1 << 24) + 1 == 1 << 24);
+    try expectEqual(@as(f32, 1 << 24) + 1, 1 << 24);
 }
 
 test "f64 at compile time is lossy" {
-    try expect(@as(f64, 1 << 53) + 1 == 1 << 53);
+    try expectEqual(@as(f64, 1 << 53) + 1, 1 << 53);
 }
 
 test "f128 at compile time is lossy" {
-    try expect(@as(f128, 10384593717069655257060992658440192.0) + 1 == 10384593717069655257060992658440192.0);
+    try expectEqual(@as(f128, 10384593717069655257060992658440192.0) + 1, 10384593717069655257060992658440192.0);
 }
 
 test {
-    comptime try expect(@as(f128, 1 << 113) == 10384593717069655257060992658440192);
+    comptime try expectEqual(@as(f128, 1 << 113), 10384593717069655257060992658440192);
 }
 
 pub fn TypeWithCompTimeSlice(comptime field_name: []const u8) type {
@@ -431,15 +431,15 @@ pub fn TypeWithCompTimeSlice(comptime field_name: []const u8) type {
 test "string literal used as comptime slice is memoized" {
     const a = "link";
     const b = "link";
-    comptime try expect(TypeWithCompTimeSlice(a).Node == TypeWithCompTimeSlice(b).Node);
-    comptime try expect(TypeWithCompTimeSlice("link").Node == TypeWithCompTimeSlice("link").Node);
+    comptime try expectEqual(TypeWithCompTimeSlice(a).Node, TypeWithCompTimeSlice(b).Node);
+    comptime try expectEqual(TypeWithCompTimeSlice("link").Node, TypeWithCompTimeSlice("link").Node);
 }
 
 test "comptime slice of undefined pointer of length 0" {
     const slice1 = @as([*]i32, undefined)[0..0];
-    try expect(slice1.len == 0);
+    try expectEqual(slice1.len, 0);
     const slice2 = @as([*]i32, undefined)[100..100];
-    try expect(slice2.len == 0);
+    try expectEqual(slice2.len, 0);
 }
 
 fn copyWithPartialInline(s: []u32, b: []u8) void {
@@ -461,15 +461,15 @@ test "binary math operator in partially inlined function" {
         r.* = @intCast(u8, i + 1);
 
     copyWithPartialInline(s[0..], b[0..]);
-    try expect(s[0] == 0x1020304);
-    try expect(s[1] == 0x5060708);
-    try expect(s[2] == 0x90a0b0c);
-    try expect(s[3] == 0xd0e0f10);
+    try expectEqual(s[0], 0x1020304);
+    try expectEqual(s[1], 0x5060708);
+    try expectEqual(s[2], 0x90a0b0c);
+    try expectEqual(s[3], 0xd0e0f10);
 }
 
 test "comptime function with the same args is memoized" {
     comptime {
-        try expect(MakeType(i32) == MakeType(i32));
+        try expectEqual(MakeType(i32), MakeType(i32));
         try expect(MakeType(i32) != MakeType(f64));
     }
 }
@@ -486,7 +486,7 @@ test "comptime function with mutable pointer is not memoized" {
         const ptr = &x;
         increment(ptr);
         increment(ptr);
-        try expect(x == 3);
+        try expectEqual(x, 3);
     }
 }
 
@@ -512,14 +512,14 @@ fn doesAlotT(comptime T: type, value: usize) T {
 }
 
 test "@setEvalBranchQuota at same scope as generic function call" {
-    try expect(doesAlotT(u32, 2) == 2);
+    try expectEqual(doesAlotT(u32, 2), 2);
 }
 
 test "comptime slice of slice preserves comptime var" {
     comptime {
         var buff: [10]u8 = undefined;
         buff[0..][0..][0] = 1;
-        try expect(buff[0..][0..][0] == 1);
+        try expectEqual(buff[0..][0..][0], 1);
     }
 }
 
@@ -528,7 +528,7 @@ test "comptime slice of pointer preserves comptime var" {
         var buff: [10]u8 = undefined;
         var a = @ptrCast([*]u8, &buff);
         a[0..1][0] = 1;
-        try expect(buff[0..][0..][0] == 1);
+        try expectEqual(buff[0..][0..][0], 1);
     }
 }
 
@@ -542,9 +542,9 @@ const SingleFieldStruct = struct {
 test "const ptr to comptime mutable data is not memoized" {
     comptime {
         var foo = SingleFieldStruct{ .x = 1 };
-        try expect(foo.read_x() == 1);
+        try expectEqual(foo.read_x(), 1);
         foo.x = 2;
-        try expect(foo.read_x() == 2);
+        try expectEqual(foo.read_x(), 2);
     }
 }
 
@@ -570,7 +570,7 @@ test "comptime shlWithOverflow" {
         break :amt amt;
     };
 
-    try expect(ct_shifted == rt_shifted);
+    try expectEqual(ct_shifted, rt_shifted);
 }
 
 test "comptime shl" {
@@ -584,7 +584,7 @@ test "runtime 128 bit integer division" {
     var a: u128 = 152313999999999991610955792383;
     var b: u128 = 10000000000000000000;
     var c = a / b;
-    try expect(c == 15231399999);
+    try expectEqual(c, 15231399999);
 }
 
 pub const Info = struct {
@@ -597,20 +597,20 @@ test "comptime modification of const struct field" {
     comptime {
         var res = diamond_info;
         res.version = 1;
-        try expect(diamond_info.version == 0);
-        try expect(res.version == 1);
+        try expectEqual(diamond_info.version, 0);
+        try expectEqual(res.version, 1);
     }
 }
 
 test "pointer to type" {
     comptime {
         var T: type = i32;
-        try expect(T == i32);
+        try expectEqual(T, i32);
         var ptr = &T;
-        try expect(@TypeOf(ptr) == *type);
+        try expectEqual(@TypeOf(ptr), *type);
         ptr.* = f32;
-        try expect(T == f32);
-        try expect(*T == *f32);
+        try expectEqual(T, f32);
+        try expectEqual(*T, *f32);
     }
 }
 
@@ -619,17 +619,17 @@ test "slice of type" {
         var types_array = [_]type{ i32, f64, type };
         for (types_array) |T, i| {
             switch (i) {
-                0 => try expect(T == i32),
-                1 => try expect(T == f64),
-                2 => try expect(T == type),
+                0 => try expectEqual(T, i32),
+                1 => try expectEqual(T, f64),
+                2 => try expectEqual(T, type),
                 else => unreachable,
             }
         }
         for (types_array[0..]) |T, i| {
             switch (i) {
-                0 => try expect(T == i32),
-                1 => try expect(T == f64),
-                2 => try expect(T == type),
+                0 => try expectEqual(T, i32),
+                1 => try expectEqual(T, f64),
+                2 => try expectEqual(T, type),
                 else => unreachable,
             }
         }
@@ -646,7 +646,7 @@ fn wrap(comptime T: type) Wrapper {
 
 test "function which returns struct with type field causes implicit comptime" {
     const ty = wrap(i32).T;
-    try expect(ty == i32);
+    try expectEqual(ty, i32);
 }
 
 test "call method with comptime pass-by-non-copying-value self parameter" {
@@ -660,7 +660,7 @@ test "call method with comptime pass-by-non-copying-value self parameter" {
 
     const s = S{ .a = 2 };
     var b = s.b();
-    try expect(b == 2);
+    try expectEqual(b, 2);
 }
 
 test "@tagName of @typeInfo" {
@@ -687,7 +687,7 @@ fn testVarInsideInlineLoop(args: anytype) !void {
     inline while (i < args.len) : (i += 1) {
         const x = args[i];
         if (i == 0) try expect(x);
-        if (i == 1) try expect(x == 42);
+        if (i == 1) try expectEqual(x, 42);
     }
 }
 
@@ -697,7 +697,7 @@ test "inline for with same type but different values" {
         var a: T = undefined;
         res += a.len;
     }
-    try expect(res == 5);
+    try expectEqual(res, 5);
 }
 
 test "refer to the type of a generic function" {
@@ -713,13 +713,13 @@ fn doNothingWithType(comptime T: type) void {
 test "zero extend from u0 to u1" {
     var zero_u0: u0 = 0;
     var zero_u1: u1 = zero_u0;
-    try expect(zero_u1 == 0);
+    try expectEqual(zero_u1, 0);
 }
 
 test "bit shift a u1" {
     var x: u1 = 1;
     var y = x << 0;
-    try expect(y == 1);
+    try expectEqual(y, 1);
 }
 
 test "comptime pointer cast array and then slice" {
@@ -731,8 +731,8 @@ test "comptime pointer cast array and then slice" {
     const ptrB: [*]const u8 = &array;
     const sliceB: []const u8 = ptrB[0..2];
 
-    try expect(sliceA[1] == 2);
-    try expect(sliceB[1] == 2);
+    try expectEqual(sliceA[1], 2);
+    try expectEqual(sliceB[1], 2);
 }
 
 test "slice bounds in comptime concatenation" {
@@ -741,35 +741,35 @@ test "slice bounds in comptime concatenation" {
         break :blk b[8..9];
     };
     const str = "" ++ bs;
-    try expect(str.len == 1);
+    try expectEqual(str.len, 1);
     try expect(std.mem.eql(u8, str, "1"));
 
     const str2 = bs ++ "";
-    try expect(str2.len == 1);
+    try expectEqual(str2.len, 1);
     try expect(std.mem.eql(u8, str2, "1"));
 }
 
 test "comptime bitwise operators" {
     comptime {
-        try expect(3 & 1 == 1);
-        try expect(3 & -1 == 3);
-        try expect(-3 & -1 == -3);
-        try expect(3 | -1 == -1);
-        try expect(-3 | -1 == -1);
-        try expect(3 ^ -1 == -4);
-        try expect(-3 ^ -1 == 2);
-        try expect(~@as(i8, -1) == 0);
-        try expect(~@as(i128, -1) == 0);
-        try expect(18446744073709551615 & 18446744073709551611 == 18446744073709551611);
-        try expect(-18446744073709551615 & -18446744073709551611 == -18446744073709551615);
-        try expect(~@as(u128, 0) == 0xffffffffffffffffffffffffffffffff);
+        try expectEqual(3 & 1, 1);
+        try expectEqual(3 & -1, 3);
+        try expectEqual(-3 & -1, -3);
+        try expectEqual(3 | -1, -1);
+        try expectEqual(-3 | -1, -1);
+        try expectEqual(3 ^ -1, -4);
+        try expectEqual(-3 ^ -1, 2);
+        try expectEqual(~@as(i8, -1), 0);
+        try expectEqual(~@as(i128, -1), 0);
+        try expectEqual(18446744073709551615 & 18446744073709551611, 18446744073709551611);
+        try expectEqual(-18446744073709551615 & -18446744073709551611, -18446744073709551615);
+        try expectEqual(~@as(u128, 0), 0xffffffffffffffffffffffffffffffff);
     }
 }
 
 test "*align(1) u16 is the same as *align(1:0:2) u16" {
     comptime {
-        try expect(*align(1:0:2) u16 == *align(1) u16);
-        try expect(*align(2:0:2) u16 == *u16);
+        try expectEqual(*align(1:0:2) u16, *align(1) u16);
+        try expectEqual(*align(2:0:2) u16, *u16);
     }
 }
 

@@ -1,13 +1,14 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 test "while loop" {
     var i: i32 = 0;
     while (i < 4) {
         i += 1;
     }
-    try expect(i == 4);
-    try expect(whileLoop1() == 1);
+    try expectEqual(i, 4);
+    try expectEqual(whileLoop1(), 1);
 }
 fn whileLoop1() i32 {
     return whileLoop2();
@@ -19,7 +20,7 @@ fn whileLoop2() i32 {
 }
 
 test "static eval while" {
-    try expect(static_eval_while_number == 1);
+    try expectEqual(static_eval_while_number, 1);
 }
 const static_eval_while_number = staticWhileLoop1();
 fn staticWhileLoop1() i32 {
@@ -33,7 +34,7 @@ fn staticWhileLoop2() i32 {
 
 test "continue and break" {
     try runContinueAndBreakTest();
-    try expect(continue_and_break_counter == 8);
+    try expectEqual(continue_and_break_counter, 8);
 }
 var continue_and_break_counter: i32 = 0;
 fn runContinueAndBreakTest() !void {
@@ -46,7 +47,7 @@ fn runContinueAndBreakTest() !void {
         }
         break;
     }
-    try expect(i == 4);
+    try expectEqual(i, 4);
 }
 
 test "return with implicit cast from while loop" {
@@ -67,7 +68,7 @@ test "while with continue expression" {
             sum += i;
         }
     }
-    try expect(sum == 40);
+    try expectEqual(sum, 40);
 }
 
 test "while with else" {
@@ -79,8 +80,8 @@ test "while with else" {
     } else {
         got_else += 1;
     }
-    try expect(sum == 10);
-    try expect(got_else == 1);
+    try expectEqual(sum, 10);
+    try expectEqual(got_else, 1);
 }
 
 test "while with optional as condition" {
@@ -89,7 +90,7 @@ test "while with optional as condition" {
     while (getNumberOrNull()) |value| {
         sum += value;
     }
-    try expect(sum == 45);
+    try expectEqual(sum, 45);
 }
 
 test "while with optional as condition with else" {
@@ -98,12 +99,12 @@ test "while with optional as condition with else" {
     var got_else: i32 = 0;
     while (getNumberOrNull()) |value| {
         sum += value;
-        try expect(got_else == 0);
+        try expectEqual(got_else, 0);
     } else {
         got_else += 1;
     }
-    try expect(sum == 45);
-    try expect(got_else == 1);
+    try expectEqual(sum, 45);
+    try expectEqual(got_else, 1);
 }
 
 test "while with error union condition" {
@@ -113,11 +114,11 @@ test "while with error union condition" {
     while (getNumberOrErr()) |value| {
         sum += value;
     } else |err| {
-        try expect(err == error.OutOfNumbers);
+        try expectEqual(err, error.OutOfNumbers);
         got_else += 1;
     }
-    try expect(sum == 45);
-    try expect(got_else == 1);
+    try expectEqual(sum, 45);
+    try expectEqual(got_else, 1);
 }
 
 var numbers_left: i32 = undefined;
@@ -138,42 +139,42 @@ test "while on optional with else result follow else prong" {
     const result = while (returnNull()) |value| {
         break value;
     } else @as(i32, 2);
-    try expect(result == 2);
+    try expectEqual(result, 2);
 }
 
 test "while on optional with else result follow break prong" {
     const result = while (returnOptional(10)) |value| {
         break value;
     } else @as(i32, 2);
-    try expect(result == 10);
+    try expectEqual(result, 10);
 }
 
 test "while on error union with else result follow else prong" {
     const result = while (returnError()) |value| {
         break value;
     } else |_| @as(i32, 2);
-    try expect(result == 2);
+    try expectEqual(result, 2);
 }
 
 test "while on error union with else result follow break prong" {
     const result = while (returnSuccess(10)) |value| {
         break value;
     } else |_| @as(i32, 2);
-    try expect(result == 10);
+    try expectEqual(result, 10);
 }
 
 test "while on bool with else result follow else prong" {
     const result = while (returnFalse()) {
         break @as(i32, 10);
     } else @as(i32, 2);
-    try expect(result == 2);
+    try expectEqual(result, 2);
 }
 
 test "while on bool with else result follow break prong" {
     const result = while (returnTrue()) {
         break @as(i32, 10);
     } else @as(i32, 2);
-    try expect(result == 10);
+    try expectEqual(result, 10);
 }
 
 test "break from outer while loop" {
@@ -274,7 +275,7 @@ test "while copies its payload" {
             while (tmp) |value| {
                 // Modify the original variable
                 tmp = null;
-                try expect(value == 10);
+                try expectEqual(value, 10);
             }
         }
     };

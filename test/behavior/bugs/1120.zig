@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 const A = packed struct {
     a: u2,
@@ -19,5 +20,5 @@ test "bug 1120" {
         1 => &b.a,
         else => unreachable,
     };
-    try expect(ptr.* == 2);
+    try expectEqual(ptr.*, 2);
 }

@@ -1,4 +1,5 @@
 const expect = @import("std").testing.expect;
+const expectEqual = @import("std").testing.expectEqual;
 
 const module = @This();
 
@@ -20,7 +21,7 @@ fn add(x: i32, y: i32) i32 {
 }
 
 test "this refer to module call private fn" {
-    try expect(module.add(1, 2) == 3);
+    try expectEqual(module.add(1, 2), 3);
 }
 
 test "this refer to container" {
@@ -29,6 +30,6 @@ test "this refer to container" {
         .y = 34,
     };
     pt.addOne();
-    try expect(pt.x == 13);
-    try expect(pt.y == 35);
+    try expectEqual(pt.x, 13);
+    try expectEqual(pt.y, 35);
 }

@@ -184,9 +184,9 @@ test "load vector elements via comptime index" {
     const S = struct {
         fn doTheTest() !void {
             var v: Vector(4, i32) = [_]i32{ 1, 2, 3, undefined };
-            try expect(v[0] == 1);
-            try expect(v[1] == 2);
-            try expect(loadv(&v[2]) == 3);
+            try expectEqual(v[0], 1);
+            try expectEqual(v[1], 2);
+            try expectEqual(loadv(&v[2]), 3);
         }
         fn loadv(ptr: anytype) i32 {
             return ptr.*;
@@ -203,13 +203,13 @@ test "store vector elements via comptime index" {
             var v: Vector(4, i32) = [_]i32{ 1, 5, 3, undefined };
 
             v[2] = 42;
-            try expect(v[1] == 5);
+            try expectEqual(v[1], 5);
             v[3] = -364;
-            try expect(v[2] == 42);
+            try expectEqual(v[2], 42);
             try expect(-364 == v[3]);
 
             storev(&v[0], 100);
-            try expect(v[0] == 100);
+            try expectEqual(v[0], 100);
         }
         fn storev(ptr: anytype, x: i32) void {
             ptr.* = x;
@@ -225,11 +225,11 @@ test "load vector elements via runtime index" {
         fn doTheTest() !void {
             var v: Vector(4, i32) = [_]i32{ 1, 2, 3, undefined };
             var i: u32 = 0;
-            try expect(v[i] == 1);
+            try expectEqual(v[i], 1);
             i += 1;
-            try expect(v[i] == 2);
+            try expectEqual(v[i], 2);
             i += 1;
-            try expect(v[i] == 3);
+            try expectEqual(v[i], 3);
         }
     };
 
@@ -243,8 +243,8 @@ test "store vector elements via runtime index" {
             var v: Vector(4, i32) = [_]i32{ 1, 5, 3, undefined };
             var i: u32 = 2;
             v[i] = 1;
-            try expect(v[1] == 5);
-            try expect(v[2] == 1);
+            try expectEqual(v[1], 5);
+            try expectEqual(v[2], 1);
             i += 1;
             v[i] = -364;
             try expect(-364 == v[3]);

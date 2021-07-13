@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 const Foo = struct {
     x: i32,
@@ -16,7 +17,7 @@ test "coroutine await struct" {
     await_seq('f');
     resume await_a_promise;
     await_seq('i');
-    try expect(await_final_result.x == 1234);
+    try expectEqual(await_final_result.x, 1234);
     try expect(std.mem.eql(u8, &await_points, "abcdefghi"));
 }
 fn await_amain() callconv(.Async) void {

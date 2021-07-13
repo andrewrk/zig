@@ -21,14 +21,14 @@ fn testNullPtrsEql() !void {
 
     var x: ?*i32 = null;
     var y: ?*i32 = null;
-    try expect(x == y);
+    try expectEqual(x, y);
     y = &number;
     try expect(x != y);
     try expect(x != &number);
     try expect(&number != x);
     x = &number;
-    try expect(x == y);
-    try expect(x == &number);
+    try expectEqual(x, y);
+    try expectEqual(x, &number);
     try expect(&number == x);
 }
 
@@ -46,7 +46,7 @@ test "address of unwrap optional" {
     };
     S.global = S.Foo{ .a = 1234 };
     const foo = S.getFoo() catch unreachable;
-    try expect(foo.a == 1234);
+    try expectEqual(foo.a, 1234);
 }
 
 test "equality compare optional with non-optional" {
@@ -61,7 +61,7 @@ fn test_cmp_optional_non_optional() !void {
     var int_n: ?i32 = null;
 
     try expect(int_n != ten);
-    try expect(opt_ten == ten);
+    try expectEqual(opt_ten, ten);
     try expect(opt_ten != five);
 
     // test evaluation is always lexical
@@ -71,14 +71,14 @@ fn test_cmp_optional_non_optional() !void {
         mutable_state += 1;
         break :blk1 @as(?f64, 10.0);
     } != blk2: {
-        try expect(mutable_state == 1);
+        try expectEqual(mutable_state, 1);
         break :blk2 @as(f64, 5.0);
     };
     _ = blk1: {
         mutable_state += 1;
         break :blk1 @as(f64, 10.0);
     } != blk2: {
-        try expect(mutable_state == 2);
+        try expectEqual(mutable_state, 2);
         break :blk2 @as(?f64, 5.0);
     };
 }
@@ -101,8 +101,8 @@ test "passing an optional integer as a parameter" {
 test "unwrap function call with optional pointer return value" {
     const S = struct {
         fn entry() !void {
-            try expect(foo().?.* == 1234);
-            try expect(bar() == null);
+            try expectEqual(foo().?.*, 1234);
+            try expectEqual(bar(), null);
         }
         const global: i32 = 1234;
         fn foo() ?*const i32 {
@@ -119,7 +119,7 @@ test "unwrap function call with optional pointer return value" {
 test "nested orelse" {
     const S = struct {
         fn entry() !void {
-            try expect(func() == null);
+            try expectEqual(func(), null);
         }
         fn maybe() ?Foo {
             return null;
@@ -155,7 +155,7 @@ test "self-referential struct through a slice of optional" {
     };
 
     var n = S.Node.new();
-    try expect(n.data == null);
+    try expectEqual(n.data, null);
 }
 
 test "assigning to an unwrapped optional field in an inline loop" {
@@ -178,7 +178,7 @@ test "coerce an anon struct literal to optional struct" {
         fn doTheTest() !void {
             var maybe_dims: ?Struct = null;
             maybe_dims = .{ .field = 1 };
-            try expect(maybe_dims.?.field == 1);
+            try expectEqual(maybe_dims.?.field, 1);
         }
     };
     try S.doTheTest();
@@ -190,7 +190,7 @@ test "optional with void type" {
         x: ?void,
     };
     var x = Foo{ .x = null };
-    try expect(x.x == null);
+    try expectEqual(x.x, null);
 }
 
 test "0-bit child type coerced to optional return ptr result location" {

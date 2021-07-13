@@ -7,5 +7,5 @@ const Union = union(enum) {
 
 test "const error union field alignment" {
     var union_or_err: anyerror!Union = Union{ .Color = 1234 };
-    try std.testing.expect((union_or_err catch unreachable).Color == 1234);
+    try std.testing.expectEqual((union_or_err catch unreachable).Color, 1234);
 }

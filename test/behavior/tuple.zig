@@ -43,7 +43,7 @@ test "tuple multiplication" {
 
     const T = struct {
         fn consume_tuple(tuple: anytype, len: usize) !void {
-            try expect(tuple.len == len);
+            try expectEqual(len, tuple.len);
         }
 
         fn doTheTest() !void {
@@ -52,9 +52,9 @@ test "tuple multiplication" {
             var rt_var: u8 = 42;
             const t2 = .{rt_var} ++ .{};
 
-            try expect(t2.len == 1);
-            try expect(t2.@"0" == rt_var);
-            try expect(t2.@"0" == 42);
+            try expectEqual(t2.len, 1);
+            try expectEqual(t2.@"0", rt_var);
+            try expectEqual(t2.@"0", 42);
             try expect(&t2.@"0" != &rt_var);
 
             try consume_tuple(t1 ++ t1, 0);
@@ -83,7 +83,7 @@ test "tuple multiplication" {
 test "pass tuple to comptime var parameter" {
     const S = struct {
         fn Foo(comptime args: anytype) !void {
-            try expect(args[0] == 1);
+            try expectEqual(args[0], 1);
         }
 
         fn doTheTest() !void {

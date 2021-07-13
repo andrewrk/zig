@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 
 const State = struct {
     const Self = @This();
@@ -7,7 +8,7 @@ const State = struct {
 };
 
 fn prev(p: ?State) void {
-    expect(p == null) catch @panic("test failure");
+    expectEqual(p, null) catch @panic("test failure");
 }
 
 test "zig test crash" {

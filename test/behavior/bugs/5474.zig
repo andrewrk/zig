@@ -29,25 +29,25 @@ fn doTest() !void {
     // var
     {
         var box0: Box0 = .{ .items = undefined };
-        try std.testing.expect(@typeInfo(@TypeOf(box0.items[0..])).Pointer.is_const == false);
+        try std.testing.expectEqual(@typeInfo(@TypeOf(box0.items[0..])).Pointer.is_const, false);
 
         var box1: Box1 = .{ .items = undefined };
-        try std.testing.expect(@typeInfo(@TypeOf(box1.items[0..])).Pointer.is_const == false);
+        try std.testing.expectEqual(@typeInfo(@TypeOf(box1.items[0..])).Pointer.is_const, false);
 
         var box2: Box2 = .{ .items = undefined };
-        try std.testing.expect(@typeInfo(@TypeOf(box2.items[0..])).Pointer.is_const == false);
+        try std.testing.expectEqual(@typeInfo(@TypeOf(box2.items[0..])).Pointer.is_const, false);
     }
 
     // const
     {
         const box0: Box0 = .{ .items = undefined };
-        try std.testing.expect(@typeInfo(@TypeOf(box0.items[0..])).Pointer.is_const == true);
+        try std.testing.expectEqual(@typeInfo(@TypeOf(box0.items[0..])).Pointer.is_const, true);
 
         const box1: Box1 = .{ .items = undefined };
-        try std.testing.expect(@typeInfo(@TypeOf(box1.items[0..])).Pointer.is_const == true);
+        try std.testing.expectEqual(@typeInfo(@TypeOf(box1.items[0..])).Pointer.is_const, true);
 
         const box2: Box2 = .{ .items = undefined };
-        try std.testing.expect(@typeInfo(@TypeOf(box2.items[0..])).Pointer.is_const == true);
+        try std.testing.expectEqual(@typeInfo(@TypeOf(box2.items[0..])).Pointer.is_const, true);
     }
 }
 
