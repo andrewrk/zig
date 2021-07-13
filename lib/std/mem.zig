@@ -2948,3 +2948,7 @@ pub fn alignInSlice(slice: anytype, comptime new_alignment: usize) ?AlignedSlice
     const aligned_slice = bytesAsSlice(Element, aligned_bytes[0..slice_length_bytes]);
     return @alignCast(new_alignment, aligned_slice);
 }
+
+pub fn sliceToArray(comptime T: type, comptime s: []const T) [s.len]T {
+    return s[0..s.len].*;
+}

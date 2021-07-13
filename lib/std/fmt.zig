@@ -394,19 +394,16 @@ pub fn formatAddress(value: anytype, options: FormatOptions, writer: anytype) @T
     @compileError("Cannot format non-pointer type " ++ @typeName(T) ++ " with * specifier");
 }
 
-// This ANY const is a workaround for: https://github.com/ziglang/zig/issues/7948
-const ANY = "any";
-
 fn defaultSpec(comptime T: type) [:0]const u8 {
     switch (@typeInfo(T)) {
-        .Array => |_| return ANY,
+        .Array => |_| return "any",
         .Pointer => |ptr_info| switch (ptr_info.size) {
             .One => switch (@typeInfo(ptr_info.child)) {
                 .Array => |_| return "*",
                 else => {},
             },
             .Many, .C => return "*",
-            .Slice => return ANY,
+            .Slice => return "any",
         },
         .Optional => |info| return defaultSpec(info.child),
         else => {},
@@ -421,7 +418,20 @@ pub fn formatType(
     writer: anytype,
     max_depth: usize,
 ) @TypeOf(writer).Error!void {
-    const actual_fmt = comptime if (std.mem.eql(u8, fmt, ANY)) defaultSpec(@TypeOf(value)) else fmt;
+    // NOTE: can't pass comptime sliceToArray directly, needs to be set to a local variable
+    //       this might be an issue with the compiler
+    const fmt_array = comptime mem.sliceToArray(u8, fmt);
+    return formatTypeImpl(value, fmt.len, fmt_array, options, writer, max_depth);
+}
+pub fn formatTypeImpl(
+    value: anytype,
+    comptime fmt_len: usize,
+    comptime fmt: [fmt_len]u8,
+    options: FormatOptions,
+    writer: anytype,
+    max_depth: usize,
+) @TypeOf(writer).Error!void {
+    const actual_fmt: []const u8 = comptime if (std.mem.eql(u8, &fmt, "any")) defaultSpec(@TypeOf(value)) else &fmt;
     if (comptime std.mem.eql(u8, actual_fmt, "*")) {
         return formatAddress(value, options, writer);
     }
@@ -492,7 +502,7 @@ pub fn formatType(
                 try writer.writeAll(" = ");
                 inline for (info.fields) |u_field| {
                     if (value == @field(UnionTagType, u_field.name)) {
-                        try formatType(@field(value, u_field.name), ANY, options, writer, max_depth - 1);
+                        try formatType(@field(value, u_field.name), "any", options, writer, max_depth - 1);
                     }
                 }
                 try writer.writeAll(" }");
@@ -513,7 +523,7 @@ pub fn formatType(
                     } else {
                         try writer.writeAll(", ");
                     }
-                    try formatType(@field(value, f.name), ANY, options, writer, max_depth - 1);
+                    try formatType(@field(value, f.name), "any", options, writer, max_depth - 1);
                 }
                 return writer.writeAll(" }");
             }
@@ -530,7 +540,7 @@ pub fn formatType(
                 }
                 try writer.writeAll(f.name);
                 try writer.writeAll(" = ");
-                try formatType(@field(value, f.name), ANY, options, writer, max_depth - 1);
+                try formatType(@field(value, f.name), "any", options, writer, max_depth - 1);
             }
             try writer.writeAll(" }");
         },
