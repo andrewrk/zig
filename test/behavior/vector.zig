@@ -347,6 +347,8 @@ test "vector division operators" {
         }
 
         fn doTheTest() !void {
+            @setEvalBranchQuota(2000);
+
             // https://github.com/ziglang/zig/issues/4952
             if (builtin.target.os.tag != .windows) {
                 try doTheTestDiv(f16, [4]f16{ 4.0, -4.0, 4.0, -4.0 }, [4]f16{ 1.0, 2.0, -1.0, -2.0 });

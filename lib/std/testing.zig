@@ -46,7 +46,16 @@ pub fn expectError(expected_error: anyerror, actual_error_union: anytype) !void 
 /// equal, prints diagnostics to stderr to show exactly how they are not equal,
 /// then aborts.
 /// `actual` is casted to the type of `expected`.
+/// If the type of `expected` contains a function `pub fn eql(T, T) bool`, where
+/// T is the type being compared, it is used to check if the two values are
+/// equal.
 pub fn expectEqual(expected: anytype, actual: @TypeOf(expected)) !void {
+    if (comptime std.meta.trait.hasFn("eql")(@TypeOf(expected))) {
+        if (expected.eql(actual)) return;
+        std.debug.print("expected {}, found {}", .{ expected, actual });
+        return error.TestExpectedEqual;
+    }
+
     switch (@typeInfo(@TypeOf(actual))) {
         .NoReturn,
         .BoundFn,
@@ -182,6 +191,22 @@ pub fn expectEqual(expected: anytype, actual: @TypeOf(expected)) !void {
             }
         },
     }
+}
+
+test "expectEqual with eql" {
+    const S = struct {
+        f1: u32,
+        f2: u32,
+
+        pub fn eql(x: @This(), y: @This()) bool {
+            return x.f1 == y.f2;
+        }
+    };
+
+    const s1 = S{ .f1 = 1, .f2 = 234 };
+    const s2 = S{ .f1 = 567, .f2 = 1 };
+
+    try expectEqual(s1, s2);
 }
 
 test "expectEqual.union(enum)" {
