@@ -275,17 +275,8 @@ fn renderExpression(gpa: *Allocator, ais: *Ais, tree: ast.Tree, node: ast.Node.I
         .@"suspend" => {
             const suspend_token = main_tokens[node];
             const body = datas[node].lhs;
-            if (body != 0) {
-                try renderToken(ais, tree, suspend_token, .space);
-                return renderExpression(gpa, ais, tree, body, space);
-            } else {
-                // TODO remove this special case when 0.9.0 is released.
-                assert(space == .semicolon);
-                try renderToken(ais, tree, suspend_token, .space);
-                try ais.writer().writeAll("{}");
-                try ais.insertNewline();
-                return;
-            }
+            try renderToken(ais, tree, suspend_token, .space);
+            return renderExpression(gpa, ais, tree, body, space);
         },
 
         .@"catch" => {

@@ -93,21 +93,6 @@ test "zig fmt: rewrite callconv(.Inline) to the inline keyword" {
 }
 
 // TODO Remove this after zig 0.9.0 is released.
-test "zig fmt: rewrite suspend without block expression" {
-    try testTransform(
-        \\fn foo() void {
-        \\    suspend;
-        \\}
-        \\
-    ,
-        \\fn foo() void {
-        \\    suspend {}
-        \\}
-        \\
-    );
-}
-
-// TODO Remove this after zig 0.9.0 is released.
 test "zig fmt: rewrite @byteOffsetOf to @offsetOf" {
     try testTransform(
         \\fn foo() void {

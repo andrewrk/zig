@@ -885,11 +885,7 @@ const Parser = struct {
             },
             .keyword_suspend => {
                 const token = p.nextToken();
-                // TODO remove this special case when 0.9.0 is released.
-                const block_expr: Node.Index = if (p.eatToken(.semicolon) != null)
-                    0
-                else
-                    try p.expectBlockExprStatement();
+                const block_expr = try p.expectBlockExprStatement();
                 return p.addNode(.{
                     .tag = .@"suspend",
                     .main_token = token,
