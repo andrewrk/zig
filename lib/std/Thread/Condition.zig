@@ -60,7 +60,7 @@ pub const WindowsCondition = struct {
     pub fn wait(cond: *WindowsCondition, mutex: *Mutex) void {
         const rc = windows.kernel32.SleepConditionVariableSRW(
             &cond.cond,
-            &mutex.srwlock,
+            &mutex.impl.srwlock,
             windows.INFINITE,
             @as(windows.ULONG, 0),
         );
