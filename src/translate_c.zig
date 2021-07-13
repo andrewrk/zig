@@ -4951,10 +4951,6 @@ fn transMacroDefine(c: *Context, m: *MacroCtx) ParseError!void {
     const scope = &c.global_scope.base;
 
     const init_node = try parseCExpr(c, m, scope);
-    if (init_node.castTag(.identifier)) |ident_node| {
-        if (mem.eql(u8, "_", ident_node.data))
-            return m.fail(c, "unable to translate C expr: illegal identifier _", .{});
-    }
     const last = m.next().?;
     if (last != .Eof and last != .Nl)
         return m.fail(c, "unable to translate C expr: unexpected token .{s}", .{@tagName(last)});

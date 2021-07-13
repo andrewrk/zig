@@ -3616,9 +3616,12 @@ pub fn addCases(cases: *tests.TranslateCContext) void {
         \\}
     });
 
-    cases.add("Don't allow underscore identifier in macros",
+    cases.add("Use @ syntax for bare underscore identifier in macro or public symbol",
         \\#define FOO _
+        \\int _ = 42;
     , &[_][]const u8{
-        \\pub const FOO = @compileError("unable to translate C expr: illegal identifier _");
+        \\pub const FOO = @"_";
+        ,
+        \\pub export var @"_": c_int = 42;
     });
 }

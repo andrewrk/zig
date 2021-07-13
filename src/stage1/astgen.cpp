@@ -3821,9 +3821,6 @@ static Stage1ZirInst *astgen_identifier(Stage1AstGen *ag, Scope *scope, AstNode 
             const_instruction->value->special = ConstValSpecialStatic;
             const_instruction->value->data.x_ptr.special = ConstPtrSpecialDiscard;
             return &const_instruction->base;
-        } else {
-            add_node_error(ag->codegen, node, buf_sprintf("`_` may only be used to assign things to"));
-            return ag->codegen->invalid_inst_src;
         }
     }
 

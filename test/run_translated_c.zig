@@ -1647,4 +1647,16 @@ pub fn addCases(cases: *tests.RunTranslatedCContext) void {
         \\   if (a != 1) abort();
         \\}
     , "");
+
+    cases.add("Underscore identifiers",
+        \\#include <stdlib.h>
+        \\int _ = 10;
+        \\typedef struct { int _; } S;
+        \\int main(void) {
+        \\    if (_ != 10) abort();
+        \\    S foo = { ._ = _ };
+        \\    if (foo._ != _) abort();
+        \\    return 0;
+        \\}
+    , "");
 }
