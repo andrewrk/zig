@@ -585,16 +585,7 @@ pub fn addCases(cases: *tests.CompareOutputContext) void {
         \\    comptime format: []const u8,
         \\    args: anytype,
         \\) void {
-        \\    const level_txt = switch (level) {
-        \\        .emerg => "emergency",
-        \\        .alert => "alert",
-        \\        .crit => "critical",
-        \\        .err => "error",
-        \\        .warn => "warning",
-        \\        .notice => "notice",
-        \\        .info => "info",
-        \\        .debug => "debug",
-        \\    };
+        \\    const level_txt = comptime level.asText();
         \\    const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
         \\    const stdout = std.io.getStdOut().writer();
         \\    nosuspend stdout.print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;
@@ -638,16 +629,7 @@ pub fn addCases(cases: *tests.CompareOutputContext) void {
         \\    comptime format: []const u8,
         \\    args: anytype,
         \\) void {
-        \\    const level_txt = switch (level) {
-        \\        .emerg => "emergency",
-        \\        .alert => "alert",
-        \\        .crit => "critical",
-        \\        .err => "error",
-        \\        .warn => "warning",
-        \\        .notice => "notice",
-        \\        .info => "info",
-        \\        .debug => "debug",
-        \\    };
+        \\    const level_txt = comptime level.asText();
         \\    const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
         \\    const stdout = std.io.getStdOut().writer();
         \\    nosuspend stdout.print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;

@@ -100,6 +100,23 @@ pub const Level = enum {
     info,
     /// Debug: messages only useful for debugging.
     debug,
+
+    /// Returns a string literal of the given level in full text form.
+    pub fn asText(comptime self: Level) switch (self) {
+        .emerg => @TypeOf("emergency"),
+        .crit => @TypeOf("critical"),
+        .err => @TypeOf("error"),
+        .warn => @TypeOf("warning"),
+        else => @TypeOf(@tagName(self)),
+    } {
+        return switch (self) {
+            .emerg => "emergency",
+            .crit => "critical",
+            .err => "error",
+            .warn => "warning",
+            else => @tagName(self),
+        };
+    }
 };
 
 /// The default log level is based on build mode.
@@ -145,28 +162,32 @@ fn log(
             if (@typeInfo(@TypeOf(root.log)) != .Fn)
                 @compileError("Expected root.log to be a function");
             root.log(message_level, scope, format, args);
-        } else if (std.Target.current.os.tag == .freestanding) {
-            // On freestanding one must provide a log function; we do not have
-            // any I/O configured.
-            return;
         } else {
-            const level_txt = switch (message_level) {
-                .emerg => "emergency",
-                .alert => "alert",
-                .crit => "critical",
-                .err => "error",
-                .warn => "warning",
-                .notice => "notice",
-                .info => "info",
-                .debug => "debug",
-            };
-            const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
-            const stderr = std.io.getStdErr().writer();
-            const held = std.debug.getStderrMutex().acquire();
-            defer held.release();
-            nosuspend stderr.print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;
+            defaultLog(message_level, scope, format, args);
         }
     }
+}
+
+/// The default implementation for root.log.  root.log may forward log messages
+/// to this function.
+pub fn defaultLog(
+    comptime message_level: Level,
+    comptime scope: @Type(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    if (std.Target.current.os.tag == .freestanding) {
+        // On freestanding one must provide a log function; we do not have
+        // any I/O configured.
+        return;
+    }
+
+    const level_txt = comptime message_level.asText();
+    const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
+    const stderr = std.io.getStdErr().writer();
+    const held = std.debug.getStderrMutex().acquire();
+    defer held.release();
+    nosuspend stderr.print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;
 }
 
 /// Returns a scoped logging namespace that logs all messages using the scope
