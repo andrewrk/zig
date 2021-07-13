@@ -2,6 +2,7 @@
 //! and stage2.
 
 const std = @import("std");
+const testing = std.testing;
 const assert = std.debug.assert;
 const clang = @import("clang.zig");
 const ctok = std.c.tokenizer;
@@ -18,6 +19,7 @@ const CallingConvention = std.builtin.CallingConvention;
 pub const ClangErrMsg = clang.Stage2ErrorMsg;
 
 pub const Error = std.mem.Allocator.Error;
+const MacroProcessingError = Error || error{UnexpectedMacroToken};
 const TypeError = Error || error{UnsupportedType};
 const TransError = TypeError || error{UnsupportedTranslation};
 
@@ -26,6 +28,10 @@ const AliasList = std.ArrayList(struct {
     alias: []const u8,
     name: []const u8,
 });
+
+// Maps macro parameter names to token position, for determining if different
+// identifiers refer to the same positional argument in different macros.
+const ArgsPositionMap = std.StringArrayHashMapUnmanaged(usize);
 
 const Scope = struct {
     id: Id,
@@ -322,6 +328,8 @@ pub const Context = struct {
     /// up front in a pre-processing step.
     global_names: std.StringArrayHashMapUnmanaged(void) = .{},
 
+    pattern_list: PatternList,
+
     fn getMangle(c: *Context) u32 {
         c.mangle_count += 1;
         return c.mangle_count;
@@ -375,6 +383,7 @@ pub fn translate(
         .alias_list = AliasList.init(gpa),
         .global_scope = try arena.allocator.create(Scope.Root),
         .clang_context = ast_unit.getASTContext(),
+        .pattern_list = try PatternList.init(gpa),
     };
     context.global_scope.* = Scope.Root.init(&context);
     defer {
@@ -385,6 +394,7 @@ pub fn translate(
         context.unnamed_typedefs.deinit(gpa);
         context.typedefs.deinit(gpa);
         context.global_scope.deinit();
+        context.pattern_list.deinit(gpa);
     }
 
     try context.global_scope.nodes.append(Tag.usingnamespace_builtins.init());
@@ -4829,6 +4839,217 @@ fn isZigPrimitiveType(name: []const u8) bool {
     return @import("AstGen.zig").simple_types.has(name);
 }
 
+const PatternList = struct {
+    patterns: []Pattern,
+
+    /// Templates must be function-like macros
+    /// first element is macro source, second element is the name of the function
+    /// in std.lib.zig.c_translation.Macros which implements it
+    const templates = [_][2][]const u8{
+        [2][]const u8{ "FOO(X) (X ## f)", "F_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## F)", "F_SUFFIX" },
+
+        [2][]const u8{ "FOO(X) (X ## U)", "U_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## u)", "U_SUFFIX" },
+
+        [2][]const u8{ "FOO(X) (X ## L)", "L_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## l)", "L_SUFFIX" },
+
+        [2][]const u8{ "FOO(X) (X ## ul)", "UL_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## uL)", "UL_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## Ul)", "UL_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## UL)", "UL_SUFFIX" },
+
+        [2][]const u8{ "FOO(X) (X ## ll)", "LL_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## LL)", "LL_SUFFIX" },
+
+        [2][]const u8{ "FOO(X) (X ## ull)", "ULL_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## uLL)", "ULL_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## Ull)", "ULL_SUFFIX" },
+        [2][]const u8{ "FOO(X) (X ## ULL)", "ULL_SUFFIX" },
+
+        [2][]const u8{
+            \\wl_container_of(ptr, sample, member)                     \
+            \\(__typeof__(sample))((char *)(ptr) -                     \
+            \\     offsetof(__typeof__(*sample), member))
+            ,
+            "WL_CONTAINER_OF",
+        },
+    };
+
+    /// Assumes that `ms` represents a tokenized function-like macro.
+    fn buildArgsHash(allocator: *mem.Allocator, ms: MacroSlicer, hash: *ArgsPositionMap) MacroProcessingError!void {
+        assert(ms.tokens.len > 2);
+        assert(ms.tokens[0].id == .Identifier);
+        assert(ms.tokens[1].id == .LParen);
+
+        var i: usize = 2;
+        while (true) : (i += 1) {
+            const token = ms.tokens[i];
+            switch (token.id) {
+                .RParen => break,
+                .Comma => continue,
+                .Identifier => {
+                    const identifier = ms.slice(token);
+                    try hash.put(allocator, identifier, i);
+                },
+                else => return error.UnexpectedMacroToken,
+            }
+        }
+    }
+
+    const Pattern = struct {
+        tokens: []const CToken,
+        source: []const u8,
+        impl: []const u8,
+        args_hash: ArgsPositionMap,
+
+        fn init(self: *Pattern, allocator: *mem.Allocator, template: [2][]const u8) Error!void {
+            const source = template[0];
+            const impl = template[1];
+
+            var tok_list = std.ArrayList(CToken).init(allocator);
+            defer tok_list.deinit();
+            try tokenizeMacro(source, &tok_list);
+            const tokens = try allocator.dupe(CToken, tok_list.items);
+
+            self.* = .{
+                .tokens = tokens,
+                .source = source,
+                .impl = impl,
+                .args_hash = .{},
+            };
+            const ms = MacroSlicer{ .source = source, .tokens = tokens };
+            buildArgsHash(allocator, ms, &self.args_hash) catch |err| switch (err) {
+                error.UnexpectedMacroToken => unreachable,
+                else => |e| return e,
+            };
+        }
+
+        fn deinit(self: *Pattern, allocator: *mem.Allocator) void {
+            self.args_hash.deinit(allocator);
+            allocator.free(self.tokens);
+        }
+
+        /// This function assumes that `ms` has already been validated to contain a function-like
+        /// macro, and that the parsed template macro in `self` also contains a function-like
+        /// macro. Please review this logic carefully if changing that assumption. Two
+        /// function-like macros are considered equivalent if and only if they contain the same
+        /// list of tokens, modulo parameter names.
+        fn isEquivalent(self: Pattern, ms: MacroSlicer, args_hash: ArgsPositionMap) bool {
+            if (self.tokens.len != ms.tokens.len) return false;
+            if (args_hash.count() != self.args_hash.count()) return false;
+
+            var i: usize = 2;
+            while (self.tokens[i].id != .RParen) : (i += 1) {}
+
+            const pattern_slicer = MacroSlicer{ .source = self.source, .tokens = self.tokens };
+            while (i < self.tokens.len) : (i += 1) {
+                const pattern_token = self.tokens[i];
+                const macro_token = ms.tokens[i];
+                if (meta.activeTag(pattern_token.id) != meta.activeTag(macro_token.id)) return false;
+
+                const pattern_bytes = pattern_slicer.slice(pattern_token);
+                const macro_bytes = ms.slice(macro_token);
+                switch (pattern_token.id) {
+                    .Identifier => {
+                        const pattern_arg_index = self.args_hash.get(pattern_bytes);
+                        const macro_arg_index = args_hash.get(macro_bytes);
+
+                        if (pattern_arg_index == null and macro_arg_index == null) {
+                            if (!mem.eql(u8, pattern_bytes, macro_bytes)) return false;
+                        } else if (pattern_arg_index != null and macro_arg_index != null) {
+                            if (pattern_arg_index.? != macro_arg_index.?) return false;
+                        } else {
+                            return false;
+                        }
+                    },
+                    .MacroString, .StringLiteral, .CharLiteral, .IntegerLiteral, .FloatLiteral => {
+                        if (!mem.eql(u8, pattern_bytes, macro_bytes)) return false;
+                    },
+                    else => {
+                        // other tags correspond to keywords and operators that do not contain a "payload"
+                        // that can vary
+                    },
+                }
+            }
+            return true;
+        }
+    };
+
+    fn init(allocator: *mem.Allocator) Error!PatternList {
+        const patterns = try allocator.alloc(Pattern, templates.len);
+        for (templates) |template, i| {
+            try patterns[i].init(allocator, template);
+        }
+        return PatternList{ .patterns = patterns };
+    }
+
+    fn deinit(self: *PatternList, allocator: *mem.Allocator) void {
+        for (self.patterns) |*pattern| pattern.deinit(allocator);
+        allocator.free(self.patterns);
+    }
+
+    fn match(self: PatternList, allocator: *mem.Allocator, ms: MacroSlicer) Error!?Pattern {
+        var args_hash: ArgsPositionMap = .{};
+        defer args_hash.deinit(allocator);
+
+        buildArgsHash(allocator, ms, &args_hash) catch |err| switch (err) {
+            error.UnexpectedMacroToken => return null,
+            else => |e| return e,
+        };
+
+        for (self.patterns) |pattern| if (pattern.isEquivalent(ms, args_hash)) return pattern;
+        return null;
+    }
+};
+
+const MacroSlicer = struct {
+    source: []const u8,
+    tokens: []const CToken,
+    fn slice(self: MacroSlicer, token: CToken) []const u8 {
+        return self.source[token.start..token.end];
+    }
+};
+
+// Testing here instead of test/translate_c.zig allows us to also test that the
+// mapped function exists in `std.zig.c_translation.Macros`
+test "Macro matching" {
+    const helper = struct {
+        const MacroFunctions = @import("std").zig.c_translation.Macros;
+        fn checkMacro(allocator: *mem.Allocator, pattern_list: PatternList, source: []const u8, comptime expected_match: ?[]const u8) !void {
+            var tok_list = std.ArrayList(CToken).init(allocator);
+            defer tok_list.deinit();
+            try tokenizeMacro(source, &tok_list);
+            const macro_slicer = MacroSlicer{ .source = source, .tokens = tok_list.items };
+            const matched = try pattern_list.match(allocator, macro_slicer);
+            if (expected_match) |expected| {
+                try testing.expectEqualStrings(expected, matched.?.impl);
+                try testing.expect(@hasDecl(MacroFunctions, expected));
+            } else {
+                try testing.expectEqual(@as(@TypeOf(matched), null), matched);
+            }
+        }
+    };
+    const allocator = std.testing.allocator;
+    var pattern_list = try PatternList.init(allocator);
+    defer pattern_list.deinit(allocator);
+
+    try helper.checkMacro(allocator, pattern_list, "BAR(Z) (Z ## F)", "F_SUFFIX");
+    try helper.checkMacro(allocator, pattern_list, "BAR(Z) (Z ## U)", "U_SUFFIX");
+    try helper.checkMacro(allocator, pattern_list, "BAR(Z) (Z ## L)", "L_SUFFIX");
+    try helper.checkMacro(allocator, pattern_list, "BAR(Z) (Z ## LL)", "LL_SUFFIX");
+    try helper.checkMacro(allocator, pattern_list, "BAR(Z) (Z ## UL)", "UL_SUFFIX");
+    try helper.checkMacro(allocator, pattern_list, "BAR(Z) (Z ## ULL)", "ULL_SUFFIX");
+    try helper.checkMacro(allocator, pattern_list,
+        \\container_of(a, b, c)                             \
+        \\(__typeof__(b))((char *)(a) -                     \
+        \\     offsetof(__typeof__(*b), c))
+    , "WL_CONTAINER_OF");
+
+    try helper.checkMacro(allocator, pattern_list, "NO_MATCH(X, Y) (X + Y)", null);
+}
+
 const MacroCtx = struct {
     source: []const u8,
     list: []const CToken,
@@ -4855,7 +5076,29 @@ const MacroCtx = struct {
     fn fail(self: *MacroCtx, c: *Context, comptime fmt: []const u8, args: anytype) !void {
         return failDecl(c, self.loc, self.name, fmt, args);
     }
+
+    fn makeSlicer(self: *const MacroCtx) MacroSlicer {
+        return MacroSlicer{ .source = self.source, .tokens = self.list };
+    }
 };
+
+fn tokenizeMacro(source: []const u8, tok_list: *std.ArrayList(CToken)) Error!void {
+    var tokenizer = std.c.Tokenizer{
+        .buffer = source,
+    };
+    while (true) {
+        const tok = tokenizer.next();
+        switch (tok.id) {
+            .Nl, .Eof => {
+                try tok_list.append(tok);
+                break;
+            },
+            .LineComment, .MultiLineComment => continue,
+            else => {},
+        }
+        try tok_list.append(tok);
+    }
+}
 
 fn transPreprocessorEntities(c: *Context, unit: *clang.ASTUnit) Error!void {
     // TODO if we see #undef, delete it from the table
@@ -4888,21 +5131,7 @@ fn transPreprocessorEntities(c: *Context, unit: *clang.ASTUnit) Error!void {
                 const slice_len = @ptrToInt(end_c) - @ptrToInt(begin_c);
                 const slice = begin_c[0..slice_len];
 
-                var tokenizer = std.c.Tokenizer{
-                    .buffer = slice,
-                };
-                while (true) {
-                    const tok = tokenizer.next();
-                    switch (tok.id) {
-                        .Nl, .Eof => {
-                            try tok_list.append(tok);
-                            break;
-                        },
-                        .LineComment, .MultiLineComment => continue,
-                        else => {},
-                    }
-                    try tok_list.append(tok);
-                }
+                try tokenizeMacro(slice, &tok_list);
 
                 var macro_ctx = MacroCtx{
                     .source = slice,
@@ -4964,6 +5193,16 @@ fn transMacroDefine(c: *Context, m: *MacroCtx) ParseError!void {
 }
 
 fn transMacroFnDefine(c: *Context, m: *MacroCtx) ParseError!void {
+    const macro_slicer = m.makeSlicer();
+    if (try c.pattern_list.match(c.gpa, macro_slicer)) |pattern| {
+        const decl = try Tag.pub_var_simple.create(c.arena, .{
+            .name = m.name,
+            .init = try Tag.helpers_macro.create(c.arena, pattern.impl),
+        });
+        try c.global_scope.macro_table.put(m.name, decl);
+        return;
+    }
+
     var block_scope = try Scope.Block.init(c, &c.global_scope.base, false);
     defer block_scope.deinit();
     const scope = &block_scope.base;

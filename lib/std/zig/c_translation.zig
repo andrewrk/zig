@@ -350,3 +350,83 @@ test "Flexible Array Type" {
     try testing.expectEqual(FlexibleArrayType(*volatile Container, c_int), [*c]volatile c_int);
     try testing.expectEqual(FlexibleArrayType(*const volatile Container, c_int), [*c]const volatile c_int);
 }
+
+pub const Macros = struct {
+    pub fn U_SUFFIX(comptime n: comptime_int) @TypeOf(promoteIntLiteral(c_uint, n, .decimal)) {
+        return promoteIntLiteral(c_uint, n, .decimal);
+    }
+
+    fn L_SUFFIX_ReturnType(comptime number: anytype) type {
+        switch (@TypeOf(number)) {
+            comptime_int => return @TypeOf(promoteIntLiteral(c_long, number, .decimal)),
+            comptime_float => return c_longdouble,
+            else => @compileError("Invalid value for L suffix"),
+        }
+    }
+    pub fn L_SUFFIX(comptime number: anytype) L_SUFFIX_ReturnType(number) {
+        switch (@TypeOf(number)) {
+            comptime_int => return promoteIntLiteral(c_long, number, .decimal),
+            comptime_float => @compileError("TODO: c_longdouble initialization from comptime_float not supported"),
+            else => @compileError("Invalid value for L suffix"),
+        }
+    }
+
+    pub fn UL_SUFFIX(comptime n: comptime_int) @TypeOf(promoteIntLiteral(c_ulong, n, .decimal)) {
+        return promoteIntLiteral(c_ulong, n, .decimal);
+    }
+
+    pub fn LL_SUFFIX(comptime n: comptime_int) @TypeOf(promoteIntLiteral(c_longlong, n, .decimal)) {
+        return promoteIntLiteral(c_longlong, n, .decimal);
+    }
+
+    pub fn ULL_SUFFIX(comptime n: comptime_int) @TypeOf(promoteIntLiteral(c_ulonglong, n, .decimal)) {
+        return promoteIntLiteral(c_ulonglong, n, .decimal);
+    }
+
+    pub fn F_SUFFIX(comptime f: comptime_float) f32 {
+        return @as(f32, f);
+    }
+
+    pub fn WL_CONTAINER_OF(ptr: anytype, sample: anytype, comptime member: []const u8) @TypeOf(sample) {
+        return @fieldParentPtr(@TypeOf(sample.*), member, ptr);
+    }
+};
+
+test "Macro suffix functions" {
+    try testing.expect(@TypeOf(Macros.F_SUFFIX(1)) == f32);
+
+    try testing.expect(@TypeOf(Macros.U_SUFFIX(1)) == c_uint);
+    if (math.maxInt(c_ulong) > math.maxInt(c_uint)) {
+        try testing.expect(@TypeOf(Macros.U_SUFFIX(math.maxInt(c_uint) + 1)) == c_ulong);
+    }
+    if (math.maxInt(c_ulonglong) > math.maxInt(c_ulong)) {
+        try testing.expect(@TypeOf(Macros.U_SUFFIX(math.maxInt(c_ulong) + 1)) == c_ulonglong);
+    }
+
+    try testing.expect(@TypeOf(Macros.L_SUFFIX(1)) == c_long);
+    if (math.maxInt(c_long) > math.maxInt(c_int)) {
+        try testing.expect(@TypeOf(Macros.L_SUFFIX(math.maxInt(c_int) + 1)) == c_long);
+    }
+    if (math.maxInt(c_longlong) > math.maxInt(c_long)) {
+        try testing.expect(@TypeOf(Macros.L_SUFFIX(math.maxInt(c_long) + 1)) == c_longlong);
+    }
+
+    try testing.expect(@TypeOf(Macros.UL_SUFFIX(1)) == c_ulong);
+    if (math.maxInt(c_ulonglong) > math.maxInt(c_ulong)) {
+        try testing.expect(@TypeOf(Macros.UL_SUFFIX(math.maxInt(c_ulong) + 1)) == c_ulonglong);
+    }
+
+    try testing.expect(@TypeOf(Macros.LL_SUFFIX(1)) == c_longlong);
+    try testing.expect(@TypeOf(Macros.ULL_SUFFIX(1)) == c_ulonglong);
+}
+
+test "WL_CONTAINER_OF" {
+    const S = struct {
+        a: u32 = 0,
+        b: u32 = 0,
+    };
+    var x = S{};
+    var y = S{};
+    var ptr = Macros.WL_CONTAINER_OF(&x.b, &y, "b");
+    try testing.expectEqual(&x, ptr);
+}

@@ -193,6 +193,8 @@ pub const Node = extern union {
         helpers_flexible_array_type,
         /// @import("std").zig.c_translation.shuffleVectorIndex(lhs, rhs)
         helpers_shuffle_vector_index,
+        /// @import("std").zig.c_translation.Macro.<operand>
+        helpers_macro,
         /// @import("std").meta.Vector(lhs, rhs)
         std_meta_vector,
         /// @import("std").mem.zeroes(operand)
@@ -339,6 +341,7 @@ pub const Node = extern union {
                 .identifier,
                 .warning,
                 .type,
+                .helpers_macro,
                 => Payload.Value,
                 .discard => Payload.Discard,
                 .@"if" => Payload.If,
@@ -1111,6 +1114,16 @@ fn renderNode(c: *Context, node: Node) Allocator.Error!NodeIndex {
                 .main_token = try c.addToken(.identifier, payload),
                 .data = undefined,
             });
+        },
+        .helpers_macro => {
+            const payload = node.castTag(.helpers_macro).?.data;
+            const chain = [_][]const u8{
+                "zig",
+                "c_translation",
+                "Macros",
+                payload,
+            };
+            return renderStdImport(c, &chain);
         },
         .string_slice => {
             const payload = node.castTag(.string_slice).?.data;
@@ -2310,6 +2323,7 @@ fn renderNodeGrouped(c: *Context, node: Node) !NodeIndex {
         .bit_or_assign,
         .bit_xor_assign,
         .assign,
+        .helpers_macro,
         => {
             // these should never appear in places where grouping might be needed.
             unreachable;

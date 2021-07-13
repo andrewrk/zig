@@ -3621,4 +3621,10 @@ pub fn addCases(cases: *tests.TranslateCContext) void {
     , &[_][]const u8{
         \\pub const FOO = @compileError("unable to translate C expr: illegal identifier _");
     });
+
+    cases.add("Macro matching",
+        \\#define FOO(X) (X ## U)
+    , &[_][]const u8{
+        \\pub const FOO = @import("std").zig.c_translation.Macros.U_SUFFIX;
+    });
 }
