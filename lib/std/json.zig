@@ -2727,6 +2727,9 @@ pub const StringifyOptions = struct {
     /// Controls the whitespace emitted
     whitespace: ?Whitespace = null,
 
+    /// Should optional fields with null value be written?
+    emit_null_optional_fields: bool = true,
+
     string: StringOptions = StringOptions{ .String = .{} },
 
     /// Should []u8 be serialised as a string? or an array?
@@ -2823,7 +2826,7 @@ pub fn stringify(
             }
 
             try out_stream.writeByte('{');
-            comptime var field_output = false;
+            var field_output = false;
             var child_options = options;
             if (child_options.whitespace) |*child_whitespace| {
                 child_whitespace.indent_level += 1;
@@ -2832,23 +2835,36 @@ pub fn stringify(
                 // don't include void fields
                 if (Field.field_type == void) continue;
 
-                if (!field_output) {
-                    field_output = true;
-                } else {
-                    try out_stream.writeByte(',');
-                }
-                if (child_options.whitespace) |child_whitespace| {
-                    try out_stream.writeByte('\n');
-                    try child_whitespace.outputIndent(out_stream);
-                }
-                try stringify(Field.name, options, out_stream);
-                try out_stream.writeByte(':');
-                if (child_options.whitespace) |child_whitespace| {
-                    if (child_whitespace.separator) {
-                        try out_stream.writeByte(' ');
+                var emit_field = true;
+
+                // don't include optional fields that are null when emit_null_optional_fields is set to false
+                if (@typeInfo(Field.field_type) == .Optional) {
+                    if (options.emit_null_optional_fields == false) {
+                        if (@field(value, Field.name) == null) {
+                            emit_field = false;
+                        }
                     }
                 }
-                try stringify(@field(value, Field.name), child_options, out_stream);
+
+                if (emit_field) {
+                    if (!field_output) {
+                        field_output = true;
+                    } else {
+                        try out_stream.writeByte(',');
+                    }
+                    if (child_options.whitespace) |child_whitespace| {
+                        try out_stream.writeByte('\n');
+                        try child_whitespace.outputIndent(out_stream);
+                    }
+                    try stringify(Field.name, options, out_stream);
+                    try out_stream.writeByte(':');
+                    if (child_options.whitespace) |child_whitespace| {
+                        if (child_whitespace.separator) {
+                            try out_stream.writeByte(' ');
+                        }
+                    }
+                    try stringify(@field(value, Field.name), child_options, out_stream);
+                }
             }
             if (field_output) {
                 if (options.whitespace) |whitespace| {
@@ -3137,4 +3153,34 @@ test "stringify struct with custom stringifier" {
 
 test "stringify vector" {
     try teststringify("[1,1]", @splat(2, @as(u32, 1)), StringifyOptions{});
+}
+
+test "stringify null optional fields" {
+    const MyStruct = struct {
+        optional: ?[]const u8 = null,
+        required: []const u8 = "something",
+        another_optional: ?[]const u8 = null,
+        another_required: []const u8 = "something else",
+    };
+    try teststringify(
+        \\{"optional":null,"required":"something","another_optional":null,"another_required":"something else"}
+    ,
+        MyStruct{},
+        StringifyOptions{},
+    );
+    try teststringify(
+        \\{"required":"something","another_required":"something else"}
+    ,
+        MyStruct{},
+        StringifyOptions{ .emit_null_optional_fields = false },
+    );
+
+    try std.testing.expect(try parsesTo(
+        MyStruct,
+        MyStruct{},
+        &TokenStream.init(
+            \\{"required":"something","another_required":"something else"}
+        ),
+        .{ .allocator = std.testing.allocator },
+    ));
 }
