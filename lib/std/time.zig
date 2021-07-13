@@ -292,3 +292,7 @@ test "Timer" {
     timer.reset();
     try testing.expect(timer.read() < time_1);
 }
+
+test {
+    _ = @import("time/epoch.zig");
+}
