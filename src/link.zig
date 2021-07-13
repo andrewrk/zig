@@ -98,6 +98,7 @@ pub const Options = struct {
     gc_sections: ?bool = null,
     allow_shlib_undefined: ?bool,
     subsystem: ?std.Target.SubSystem,
+    out_implib: ?[]const u8,
     linker_script: ?[]const u8,
     version_script: ?[]const u8,
     soname: ?[]const u8,

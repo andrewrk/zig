@@ -611,6 +611,7 @@ fn buildOutputType(
     var main_pkg_path: ?[]const u8 = null;
     var clang_preprocessor_mode: Compilation.ClangPreprocessorMode = .no;
     var subsystem: ?std.Target.SubSystem = null;
+    var out_implib: ?[]const u8 = null;
     var major_subsystem_version: ?u32 = null;
     var minor_subsystem_version: ?u32 = null;
     var wasi_exec_model: ?std.builtin.WasiExecModel = null;
@@ -1476,6 +1477,14 @@ fn buildOutputType(
                     ) catch |err| {
                         fatal("unable to parse '{s}': {s}", .{ arg, @errorName(err) });
                     };
+                } else if (mem.eql(u8, arg, "--out-implib") or
+                    mem.eql(u8, arg, "-implib"))
+                {
+                    i += 1;
+                    if (i >= linker_args.items.len) {
+                        fatal("expected linker arg after '{s}'", .{arg});
+                    }
+                    out_implib = linker_args.items[i];
                 } else {
                     warn("unsupported linker arg: {s}", .{arg});
                 }
@@ -2069,6 +2078,7 @@ fn buildOutputType(
         .test_name_prefix = test_name_prefix,
         .disable_lld_caching = !have_enable_cache,
         .subsystem = subsystem,
+        .out_implib = out_implib,
         .wasi_exec_model = wasi_exec_model,
     }) catch |err| {
         fatal("unable to create compilation: {s}", .{@errorName(err)});
@@ -2416,6 +2426,12 @@ fn updateModule(gpa: *Allocator, comp: *Compilation, hook: AfterUpdateHook) !voi
                 defer gpa.free(dst_pdb_path);
 
                 _ = try cache_dir.updateFile(src_pdb_path, cwd, dst_pdb_path, .{});
+            }
+
+            if (comp.bin_file.options.out_implib) |out_implib| {
+                const src_implib_path = try std.fmt.allocPrint(gpa, "{s}.lib", .{bin_sub_path});
+                defer gpa.free(src_implib_path);
+                _ = try cache_dir.updateFile(src_implib_path, cwd, out_implib, .{});
             }
         },
     }
