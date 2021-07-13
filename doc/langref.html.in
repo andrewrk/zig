@@ -38,15 +38,20 @@
       .file {
         text-decoration: underline;
       }
-      pre,code {
-        font-size: 12pt;
-      }
       pre > code {
         display: block;
         overflow: auto;
         padding: 0.5em;
         color: #333;
         background: #f8f8f8;
+        border: 1px dotted silver;
+        line-height: normal;
+      }
+      code {
+        background-color: #f8f8f8;
+        border: 1px dotted silver;
+        padding-left: 0.3em;
+        padding-right: 0.3em;
       }
       .table-wrapper {
         width: 100%;
@@ -95,6 +100,7 @@
       #contents {
         max-width: 60em;
         margin: auto;
+        line-height: 1.5;
       }
 
       #toc {
@@ -153,6 +159,11 @@
         pre > code {
             color: #ccc;
             background: #222;
+            border-color: #444;
+        }
+        code {
+          background-color: #222;
+          border-color: #444;
         }
         .tok-kw {
             color: #eee;
