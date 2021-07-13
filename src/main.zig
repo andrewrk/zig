@@ -586,6 +586,10 @@ fn buildOutputType(
     var linker_bind_global_refs_locally: ?bool = null;
     var linker_z_nodelete = false;
     var linker_z_defs = false;
+    var linker_z_origin = false;
+    var linker_z_noexecstack = false;
+    var linker_z_now = false;
+    var linker_z_relro = false;
     var linker_tsaware = false;
     var linker_nxcompat = false;
     var linker_dynamicbase = false;
@@ -1379,6 +1383,14 @@ fn buildOutputType(
                         linker_z_nodelete = true;
                     } else if (mem.eql(u8, z_arg, "defs")) {
                         linker_z_defs = true;
+                    } else if (mem.eql(u8, z_arg, "origin")) {
+                        linker_z_origin = true;
+                    } else if (mem.eql(u8, z_arg, "noexecstack")) {
+                        linker_z_noexecstack = true;
+                    } else if (mem.eql(u8, z_arg, "now")) {
+                        linker_z_now = true;
+                    } else if (mem.eql(u8, z_arg, "relro")) {
+                        linker_z_relro = true;
                     } else {
                         warn("unsupported linker arg: -z {s}", .{z_arg});
                     }
@@ -2034,6 +2046,10 @@ fn buildOutputType(
         .linker_bind_global_refs_locally = linker_bind_global_refs_locally,
         .linker_z_nodelete = linker_z_nodelete,
         .linker_z_defs = linker_z_defs,
+        .linker_z_origin = linker_z_origin,
+        .linker_z_noexecstack = linker_z_noexecstack,
+        .linker_z_now = linker_z_now,
+        .linker_z_relro = linker_z_relro,
         .linker_tsaware = linker_tsaware,
         .linker_nxcompat = linker_nxcompat,
         .linker_dynamicbase = linker_dynamicbase,

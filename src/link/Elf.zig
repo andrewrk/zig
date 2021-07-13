@@ -1339,6 +1339,10 @@ fn linkWithLLD(self: *Elf, comp: *Compilation) !void {
         man.hash.add(self.base.options.skip_linker_dependencies);
         man.hash.add(self.base.options.z_nodelete);
         man.hash.add(self.base.options.z_defs);
+        man.hash.add(self.base.options.z_origin);
+        man.hash.add(self.base.options.z_noexecstack);
+        man.hash.add(self.base.options.z_now);
+        man.hash.add(self.base.options.z_relro);
         if (self.base.options.link_libc) {
             man.hash.add(self.base.options.libc_installation != null);
             if (self.base.options.libc_installation) |libc_installation| {
@@ -1475,6 +1479,22 @@ fn linkWithLLD(self: *Elf, comp: *Compilation) !void {
         if (self.base.options.z_defs) {
             try argv.append("-z");
             try argv.append("defs");
+        }
+        if (self.base.options.z_origin) {
+            try argv.append("-z");
+            try argv.append("origin");
+        }
+        if (self.base.options.z_noexecstack) {
+            try argv.append("-z");
+            try argv.append("noexecstack");
+        }
+        if (self.base.options.z_now) {
+            try argv.append("-z");
+            try argv.append("now");
+        }
+        if (self.base.options.z_relro) {
+            try argv.append("-z");
+            try argv.append("relro");
         }
 
         if (getLDMOption(target)) |ldm| {
