@@ -210,7 +210,7 @@ const LineNumberProgram = struct {
         };
     }
 
-    pub fn checkLineMatch(self: *LineNumberProgram) !?debug.LineInfo {
+    pub fn checkLineMatch(self: *LineNumberProgram) !?debug.SymbolMap.LineInfo {
         if (self.prev_valid and self.target_address >= self.prev_address and self.target_address < self.address) {
             const file_entry = if (self.prev_file == 0) {
                 return error.MissingDebugInfo;
@@ -223,7 +223,7 @@ const LineNumberProgram = struct {
             } else self.include_dirs[file_entry.dir_index];
             const file_name = try fs.path.join(self.file_entries.allocator, &[_][]const u8{ dir_name, file_entry.file_name });
             errdefer self.file_entries.allocator.free(file_name);
-            return debug.LineInfo{
+            return debug.SymbolMap.LineInfo{
                 .line = if (self.prev_line >= 0) @intCast(u64, self.prev_line) else 0,
                 .column = self.prev_column,
                 .file_name = file_name,
@@ -693,7 +693,7 @@ pub const DwarfInfo = struct {
         return result;
     }
 
-    pub fn getLineNumberInfo(di: *DwarfInfo, compile_unit: CompileUnit, target_address: u64) !debug.LineInfo {
+    pub fn getLineNumberInfo(di: *DwarfInfo, compile_unit: CompileUnit, target_address: u64) !debug.SymbolMap.LineInfo {
         var stream = io.fixedBufferStream(di.debug_line);
         const in = &stream.reader();
         const seekable = &stream.seekableStream();

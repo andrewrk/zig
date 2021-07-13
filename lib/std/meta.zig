@@ -103,6 +103,38 @@ test "std.meta.stringToEnum" {
     try testing.expect(null == stringToEnum(E1, "C"));
 }
 
+pub fn errorInSet(err: anytype, comptime Set: type) bool {
+    const set_errs = comptime blk: {
+        const err_infos = @typeInfo(Set).ErrorSet orelse
+            return true; // global error set!
+        var errs: [err_infos.len]Set = undefined;
+        inline for (err_infos) |err_info, i| {
+            errs[i] = @field(Set, err_info.name);
+        }
+
+        break :blk errs;
+    };
+
+    for (set_errs) |set_err| {
+        if (err == @errSetCast(anyerror, set_err)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+test "std.meta.errorInSet" {
+    testing.expect(!errorInSet(error.A, error{}));
+    testing.expect(!errorInSet(error.B, error{A}));
+    testing.expect(errorInSet(error.A, error{A}));
+    testing.expect(!errorInSet(error.D, error{ A, B, C }));
+    testing.expect(errorInSet(error.B, error{ A, B, C }));
+    testing.expect(errorInSet(error.B, anyerror));
+    testing.expect(errorInSet(error.ErrorName, anyerror));
+    testing.expect(errorInSet(error.OtherError, anyerror));
+}
+
 pub fn bitCount(comptime T: type) comptime_int {
     return switch (@typeInfo(T)) {
         .Bool => 1,
