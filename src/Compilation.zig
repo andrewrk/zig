@@ -988,7 +988,7 @@ pub fn create(gpa: *Allocator, options: InitOptions) !*Compilation {
             break :blk lm;
         } else default_link_mode;
 
-        const dll_export_fns = if (options.dll_export_fns) |explicit| explicit else is_dyn_lib;
+        const dll_export_fns = if (options.dll_export_fns) |explicit| explicit else is_dyn_lib or options.rdynamic;
 
         const libc_dirs = try detectLibCIncludeDirs(
             arena,
