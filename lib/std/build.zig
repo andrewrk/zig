@@ -1726,7 +1726,6 @@ pub const LibExeObjStep = struct {
     }
 
     pub fn linkFramework(self: *LibExeObjStep, framework_name: []const u8) void {
-        assert(self.target.isDarwin());
         // Note: No need to dupe because frameworks dupes internally.
         self.frameworks.insert(framework_name) catch unreachable;
     }
@@ -2238,28 +2237,6 @@ pub const LibExeObjStep = struct {
         self.step.dependOn(&other.step);
         self.link_objects.append(.{ .other_step = other }) catch unreachable;
         self.include_dirs.append(.{ .other_step = other }) catch unreachable;
-
-        // BUG: The following code introduces a order-of-call dependency:
-        // var lib = addSharedLibrary(...);
-        // var exe = addExecutable(...);
-        // exe.linkLibrary(lib);
-        // lib.linkSystemLibrary("foobar"); //  this will be ignored for exe!
-
-        // Inherit dependency on system libraries
-        for (other.link_objects.items) |link_object| {
-            switch (link_object) {
-                .system_lib => |name| self.linkSystemLibrary(name),
-                else => continue,
-            }
-        }
-
-        // Inherit dependencies on darwin frameworks
-        if (self.target.isDarwin() and !other.isDynamicLibrary()) {
-            var it = other.frameworks.iterator();
-            while (it.next()) |framework| {
-                self.frameworks.insert(framework.*) catch unreachable;
-            }
-        }
     }
 
     fn makePackageCmd(self: *LibExeObjStep, pkg: Pkg, zig_args: *ArrayList([]const u8)) error{OutOfMemory}!void {
@@ -2313,6 +2290,31 @@ pub const LibExeObjStep = struct {
         if (self.root_src) |root_src| try zig_args.append(root_src.getPath(builder));
 
         var prev_has_extra_flags = false;
+
+        // Resolve transitive dependencies
+        for (self.link_objects.items) |link_object| {
+            switch (link_object) {
+                .other_step => |other| {
+                    // Inherit dependency on system libraries
+                    for (other.link_objects.items) |other_link_object| {
+                        switch (other_link_object) {
+                            .system_lib => |name| self.linkSystemLibrary(name),
+                            else => continue,
+                        }
+                    }
+
+                    // Inherit dependencies on darwin frameworks
+                    if (!other.isDynamicLibrary()) {
+                        var it = other.frameworks.iterator();
+                        while (it.next()) |framework| {
+                            self.frameworks.insert(framework.*) catch unreachable;
+                        }
+                    }
+                },
+                else => continue,
+            }
+        }
+
         for (self.link_objects.items) |link_object| {
             switch (link_object) {
                 .static_path => |static_path| try zig_args.append(static_path.getPath(builder)),
@@ -2699,6 +2701,14 @@ pub const LibExeObjStep = struct {
             while (it.next()) |framework| {
                 zig_args.append("-framework") catch unreachable;
                 zig_args.append(framework.*) catch unreachable;
+            }
+        } else {
+            if (self.framework_dirs.items.len > 0) {
+                warn("Framework directories have been added for a non-darwin target, this will have no affect on the build\n", .{});
+            }
+
+            if (self.frameworks.count() > 0) {
+                warn("Frameworks have been added for a non-darwin target, this will have no affect on the build\n", .{});
             }
         }
 
