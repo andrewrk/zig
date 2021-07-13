@@ -18,8 +18,12 @@ pub var failing_allocator_instance = FailingAllocator.init(&base_allocator_insta
 
 pub var base_allocator_instance = std.heap.FixedBufferAllocator.init("");
 
-/// TODO https://github.com/ziglang/zig/issues/5738
 pub var log_level = std.log.Level.warn;
+
+/// This can be set by a user inside a test by calling `std.testing.setupLogTests()`.
+/// This will be used in `test_runner.zig` to test logs & track how many matching logs have been seen
+/// during a test.
+pub var log_test_settings = LogTestSettings{};
 
 /// This is available to any test that wants to execute Zig in a child process.
 /// It will be the same executable that is running `zig test`.
@@ -427,6 +431,124 @@ pub fn expectStringEndsWith(actual: []const u8, expected_ends_with: []const u8) 
     return error.TestExpectedEndsWith;
 }
 
+/// Define rules for log statements that should be tracked by the test runner.
+/// Each time a log is written during a test, the test runner will check if it should be
+/// counted. At the end of the test, `std.testing.expectLogCounts()` can be used to test
+/// if the expected number of logs were recorded.
+///
+/// The available rules are:
+/// * .scope - Match all logs with the given scope (must set this using `@tagName(.scope)`)
+/// * .exact_level - Match all logs with the given level
+/// * .min_level - Match all logs at *at least* the given level
+/// * .text - Match all logs which print this exact message
+/// * .prefix - Match all logs which print a message that starts with this prefix
+pub fn setupLogTests(log_settings: LogTestSettings) void {
+    log_test_settings = log_settings;
+}
+
+/// Pass the expected number of logs for each rule that was set with `std.testing.setupLogTests()`. 
+pub fn expectLogCounts(counts: LogTestSettings.LogCounts) !void {
+    const count_fields = std.meta.fields(LogTestSettings.LogCounts);
+    inline for (count_fields) |field| {
+        const expected = @field(counts, field.name);
+        const actual = @field(log_test_settings.seen, field.name);
+
+        if (actual != expected) {
+            print("[Log Test] For rule {s}: Expected: {}, Actual: {}\n", .{ field.name, expected, actual });
+            return error.TestExpectedLogs;
+        }
+    }
+}
+
+test "watch logs by scope" {
+    std.testing.setupLogTests(.{ 
+        .scope = @tagName(.a), 
+        .exact_level = .debug, 
+    });
+    
+    const scope_a = std.log.scoped(.a);
+    const scope_b = std.log.scoped(.b);
+
+    scope_a.debug("Count scope and level", .{});
+    scope_b.debug("Count level", .{});
+    scope_a.debug("Count scope and level", .{});
+    scope_a.warn("Count scope", .{});
+
+    try std.testing.expectLogCounts(.{
+        .scope = 3,
+        .exact_level = 3,
+    });
+}
+
+test "watch logs for text" {
+    std.testing.setupLogTests(.{ .text = "Looking for this text\n" });
+
+    const scope_a = std.log.scoped(.a);
+
+    scope_a.debug("Looking for this text\n", .{});
+    scope_a.warn("Looking for {s} text\n", .{"this"});
+    scope_a.debug("Not looking for this text\n", .{});
+
+    try std.testing.expectLogCounts(.{
+        .text = 2
+    });
+}
+
+test "ignore logs scoped by 'testing'" {
+    std.testing.setupLogTests(.{ .exact_level = .debug });
+
+    const scope_a = std.log.scoped(.a);
+
+    scope_a.debug("Should match this\n", .{});
+    std.log.testing.debug("Should not match this\n", .{});
+
+    try std.testing.expectLogCounts(.{
+        .exact_level = 1
+    });
+}
+
+test "0 logs recorded by default" {
+    const scope_a = std.log.scoped(.a);
+    const scope_b = std.log.scoped(.b);
+
+    scope_a.debug("Count scope and level", .{});
+    scope_b.debug("Count level", .{});
+    scope_a.debug("Count scope and level", .{});
+    scope_a.warn("Count scope", .{});
+
+    scope_a.debug("Looking for this text\n", .{});
+    scope_a.warn("Looking for {s} text\n", .{"this"});
+    scope_a.debug("Not looking for this text\n", .{});
+
+    scope_a.debug("Should match this\n", .{});
+    std.log.testing.debug("Should not match this\n", .{});
+
+    try std.testing.expectLogCounts(.{});
+}
+
+test "multiple checks within one test" {
+    std.testing.setupLogTests(.{ .exact_level = .debug });
+
+    const scope_a = std.log.scoped(.a);
+
+    scope_a.debug("Should match this\n", .{});
+    std.log.testing.debug("Should not match this\n", .{});
+
+    try std.testing.expectLogCounts(.{
+        .exact_level = 1
+    });
+
+    std.testing.setupLogTests(.{ .text = "Looking for this text\n" });
+
+    scope_a.debug("Looking for this text\n", .{});
+    scope_a.warn("Looking for {s} text\n", .{"this"});
+    scope_a.debug("Not looking for this text\n", .{});
+
+    try std.testing.expectLogCounts(.{
+        .text = 2
+    });
+}
+
 fn printIndicatorLine(source: []const u8, indicator_index: usize) void {
     const line_begin_index = if (std.mem.lastIndexOfScalar(u8, source[0..indicator_index], '\n')) |line_begin|
         line_begin + 1
@@ -473,3 +595,63 @@ pub fn refAllDecls(comptime T: type) void {
         _ = decl;
     }
 }
+
+const LogTestSettings = struct {
+    pub const LogCounts = struct {
+        // Add a field here if another settings field is added
+        scope: usize = 0,
+        text: usize = 0,
+        prefix: usize = 0,
+        exact_level: usize = 0,
+        min_level: usize = 0
+    };
+
+    scope: ?[]const u8 = null,
+    text: ?[]const u8 = null,
+    prefix: ?[]const u8 = null,
+    exact_level: ?std.log.Level = null,
+    min_level: ?std.log.Level = null,
+
+    seen: LogCounts = .{},
+
+    /// Given the log message, increment the `seen` counters for each rule the log matches.
+    pub fn countMatches(self: *LogTestSettings, comptime message_level: std.log.Level, comptime scope: @Type(.EnumLiteral), comptime format: []const u8, args: anytype) void {
+        if (self.scope) |test_scope| {
+            if (std.mem.eql(u8, test_scope, @tagName(scope))) {
+                self.seen.scope += 1;
+            }
+        }
+
+        if (self.text) |test_text| {
+            var buf: [format.len * 2]u8 = undefined;
+            // If there's an error formatting the message, skip checking it
+            if (std.fmt.bufPrint(buf[0..], format, args)) |base_output| {
+                if (std.mem.eql(u8, test_text, base_output)) {
+                    self.seen.text += 1;
+                }
+            } else |_| {}
+        }
+
+        if (self.prefix) |test_prefix| {
+            var buf: [format.len * 2]u8 = undefined;
+            // If there's an error formatting the message, skip checking it
+            if (std.fmt.bufPrint(buf[0..], format, args)) |base_output| {
+                if (std.mem.startsWith(u8, base_output, test_prefix)) {
+                    self.seen.prefix += 1;
+                }
+            } else |_| {}
+        }
+
+        if (self.exact_level) |test_exact_level| {            // break :blk @enumToInt(message_level) == @enumToInt(test_exact_level);
+            if (@enumToInt(message_level) == @enumToInt(test_exact_level)) {
+                self.seen.exact_level += 1;
+            }
+        }
+
+        if (self.min_level) |test_min_level| {
+            if (@enumToInt(message_level) >= @enumToInt(test_min_level)) {
+                self.seen.min_level += 1;
+            }
+        }
+    }
+};

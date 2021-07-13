@@ -49,6 +49,7 @@ pub fn main() anyerror!void {
                 leaks += 1;
             }
         }
+        std.testing.log_test_settings = .{};
         std.testing.log_level = .warn;
 
         var test_node = root_node.start(test_fn.name, 0);
@@ -122,8 +123,16 @@ pub fn log(
     if (@enumToInt(message_level) <= @enumToInt(std.log.Level.err)) {
         log_err_count += 1;
     }
-    if (@enumToInt(message_level) <= @enumToInt(std.testing.log_level)) {
-        std.debug.print("[{s}] ({s}): " ++ format ++ "\n", .{ @tagName(scope), @tagName(message_level) } ++ args);
+
+    if (scope == .testing or @enumToInt(message_level) <= @enumToInt(std.testing.log_level)) {
+        const base_message = "[" ++ @tagName(scope) ++ "] (" ++ @tagName(message_level) ++ "): " ++ format ++ "\n";
+        std.debug.print(base_message, args);
+    }
+
+    if (scope != .testing) {
+        // Log testing should only consider messages that would be shown to users, not logs from
+        // within tests themselves
+        std.testing.log_test_settings.countMatches(message_level, scope, format, args);
     }
 }
 
