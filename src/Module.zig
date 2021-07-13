@@ -4576,6 +4576,58 @@ pub const SwitchProngSrc = union(enum) {
     }
 };
 
+pub const PeerTypeCandidateSrc = union(enum) {
+    /// Use the .src field of the canidate Inst
+    infer: void,
+    /// When we want to know the the src of candidate i, look up at
+    /// index i in this slice
+    override: []LazySrcLoc,
+    /// resolvePeerTypes originates from a @TypeOf(...) call
+    typeof_builtin_call_node_offset: i32,
+
+    pub fn resolve(
+        self: PeerTypeCandidateSrc,
+        gpa: *Allocator,
+        decl: *Decl,
+        candidates: usize,
+        candidate_i: usize,
+        candidate_src: LazySrcLoc,
+    ) LazySrcLoc {
+        @setCold(true);
+
+        switch (self) {
+            .infer => {
+                return candidate_src;
+            },
+            .override => |candidate_srcs| {
+                return candidate_srcs[candidate_i];
+            },
+            .typeof_builtin_call_node_offset => |node_offset| {
+                if (candidates <= 2) {
+                    switch (candidate_i) {
+                        0 => return LazySrcLoc{ .node_offset_builtin_call_arg0 = node_offset },
+                        1 => return LazySrcLoc{ .node_offset_builtin_call_arg1 = node_offset },
+                        else => unreachable,
+                    }
+                }
+
+                const tree = decl.namespace.file_scope.getTree(gpa) catch |err| {
+                    // In this case we emit a warning + a less precise source location.
+                    log.warn("unable to load {s}: {s}", .{
+                        decl.namespace.file_scope.sub_file_path, @errorName(err),
+                    });
+                    return LazySrcLoc{ .node_offset = 0 };
+                };
+                const node = decl.relativeToNodeIndex(node_offset);
+                const node_datas = tree.nodes.items(.data);
+                const params = tree.extra_data[node_datas[node].lhs..node_datas[node].rhs];
+
+                return LazySrcLoc{ .node_abs = params[candidate_i] };
+            },
+        }
+    }
+};
+
 pub fn analyzeStructFields(mod: *Module, struct_obj: *Struct) InnerError!void {
     const tracy = trace(@src());
     defer tracy.end();
