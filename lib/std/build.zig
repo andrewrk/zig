@@ -3005,16 +3005,18 @@ pub const InstallDirStep = struct {
     fn make(step: *Step) !void {
         const self = @fieldParentPtr(InstallDirStep, "step", step);
         const dest_prefix = self.builder.getInstallPath(self.options.install_dir, self.options.install_subdir);
-        const full_src_dir = self.builder.pathFromRoot(self.options.source_dir);
-        var it = try fs.walkPath(self.builder.allocator, full_src_dir);
+        const full_src_dir_path = self.builder.pathFromRoot(self.options.source_dir);
+        const full_src_dir = try std.fs.cwd().openDir(full_src_dir_path, .{ .iterate = true });
+        var it = full_src_dir.walk(self.builder.allocator);
         next_entry: while (try it.next()) |entry| {
             for (self.options.exclude_extensions) |ext| {
-                if (mem.endsWith(u8, entry.path, ext)) {
+                if (mem.endsWith(u8, entry.name, ext)) {
                     continue :next_entry;
                 }
             }
 
-            const rel_path = entry.path[full_src_dir.len + 1 ..];
+            const full_entry_path = try entry.dir.realpathAlloc(self.builder.allocator, entry.name);
+            const rel_path = full_entry_path[full_src_dir_path.len + 1 ..];
             const dest_path = try fs.path.join(self.builder.allocator, &[_][]const u8{
                 dest_prefix, rel_path,
             });
@@ -3023,13 +3025,13 @@ pub const InstallDirStep = struct {
                 .Directory => try fs.cwd().makePath(dest_path),
                 .File => {
                     for (self.options.blank_extensions) |ext| {
-                        if (mem.endsWith(u8, entry.path, ext)) {
+                        if (mem.endsWith(u8, full_entry_path, ext)) {
                             try self.builder.truncateFile(dest_path);
                             continue :next_entry;
                         }
                     }
 
-                    try self.builder.updateFile(entry.path, dest_path);
+                    try self.builder.updateFile(full_entry_path, dest_path);
                 },
                 else => continue,
             }

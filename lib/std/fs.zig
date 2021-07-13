@@ -737,6 +737,92 @@ pub const Dir = struct {
         }
     }
 
+    pub const Walker = struct {
+        stack: std.ArrayList(StackItem),
+        name_buffer: std.ArrayList(u8),
+
+        pub const WalkerEntry = struct {
+            /// The containing directory. This can be used to operate directly on `basename`
+            /// rather than `path`, avoiding `error.NameTooLong` for deeply nested paths.
+            /// The directory remains open until `next` or `deinit` is called.
+            dir: Dir,
+            basename: []const u8,
+            path: []const u8,
+            kind: Dir.Entry.Kind,
+        };
+
+        const StackItem = struct {
+            iter: Dir.Iterator,
+            dirname_len: usize,
+        };
+
+        /// After each call to this function, and on deinit(), the memory returned
+        /// from this function becomes invalid. A copy must be made in order to keep
+        /// a reference to the path.
+        pub fn next(self: *Walker) !?WalkerEntry {
+            while (self.stack.items.len != 0) {
+                // `top` becomes invalid after appending to `self.stack`
+                var top = &self.stack.items[self.stack.items.len - 1];
+                const dirname_len = top.dirname_len;
+                if (try top.iter.next()) |base| {
+                    self.name_buffer.shrinkRetainingCapacity(dirname_len);
+                    try self.name_buffer.append(path.sep);
+                    try self.name_buffer.appendSlice(base.name);
+                    if (base.kind == .Directory) {
+                        var new_dir = top.iter.dir.openDir(base.name, .{ .iterate = true }) catch |err| switch (err) {
+                            error.NameTooLong => unreachable, // no path sep in base.name
+                            else => |e| return e,
+                        };
+                        {
+                            errdefer new_dir.close();
+                            try self.stack.append(StackItem{
+                                .iter = new_dir.iterate(),
+                                .dirname_len = self.name_buffer.items.len,
+                            });
+                            top = &self.stack.items[self.stack.items.len - 1];
+                        }
+                    }
+                    return WalkerEntry{
+                        .dir = top.iter.dir,
+                        .basename = self.name_buffer.items[dirname_len + 1 ..],
+                        .path = self.name_buffer.items,
+                        .kind = base.kind,
+                    };
+                } else {
+                    self.stack.pop().iter.dir.close();
+                }
+            }
+            return null;
+        }
+
+        pub fn deinit(self: *Walker) void {
+            while (self.stack.popOrNull()) |*item| item.iter.dir.close();
+            self.stack.deinit();
+            self.name_buffer.deinit();
+        }
+    };
+
+    /// Recursively iterates over a directory.
+    /// Must call `Walker.deinit` when done.
+    /// The order of returned file system entries is undefined.
+    pub fn walk(self: Dir, allocator: *Allocator) !Walker {
+        var name_buffer = std.ArrayList(u8).init(allocator);
+        errdefer name_buffer.deinit();
+
+        var stack = std.ArrayList(Walker.StackItem).init(allocator);
+        errdefer stack.deinit();
+
+        try stack.append(Walker.StackItem{
+            .iter = self.iterate(),
+            .dirname_len = 0,
+        });
+
+        return Walker{
+            .stack = stack,
+            .name_buffer = name_buffer,
+        };
+    }
+
     pub const OpenError = error{
         FileNotFound,
         NotDir,
@@ -2259,100 +2345,7 @@ pub fn symLinkAbsoluteZ(target_path_c: [*:0]const u8, sym_link_path_c: [*:0]cons
 pub const symLink = @compileError("deprecated: use Dir.symLink or symLinkAbsolute");
 pub const symLinkC = @compileError("deprecated: use Dir.symLinkZ or symLinkAbsoluteZ");
 
-pub const Walker = struct {
-    stack: std.ArrayList(StackItem),
-    name_buffer: std.ArrayList(u8),
-
-    pub const Entry = struct {
-        /// The containing directory. This can be used to operate directly on `basename`
-        /// rather than `path`, avoiding `error.NameTooLong` for deeply nested paths.
-        /// The directory remains open until `next` or `deinit` is called.
-        dir: Dir,
-        /// TODO make this null terminated for API convenience
-        basename: []const u8,
-
-        path: []const u8,
-        kind: Dir.Entry.Kind,
-    };
-
-    const StackItem = struct {
-        dir_it: Dir.Iterator,
-        dirname_len: usize,
-    };
-
-    /// After each call to this function, and on deinit(), the memory returned
-    /// from this function becomes invalid. A copy must be made in order to keep
-    /// a reference to the path.
-    pub fn next(self: *Walker) !?Entry {
-        while (true) {
-            if (self.stack.items.len == 0) return null;
-            // `top` becomes invalid after appending to `self.stack`.
-            var top = &self.stack.items[self.stack.items.len - 1];
-            const dirname_len = top.dirname_len;
-            if (try top.dir_it.next()) |base| {
-                self.name_buffer.shrinkRetainingCapacity(dirname_len);
-                try self.name_buffer.append(path.sep);
-                try self.name_buffer.appendSlice(base.name);
-                if (base.kind == .Directory) {
-                    var new_dir = top.dir_it.dir.openDir(base.name, .{ .iterate = true }) catch |err| switch (err) {
-                        error.NameTooLong => unreachable, // no path sep in base.name
-                        else => |e| return e,
-                    };
-                    {
-                        errdefer new_dir.close();
-                        try self.stack.append(StackItem{
-                            .dir_it = new_dir.iterate(),
-                            .dirname_len = self.name_buffer.items.len,
-                        });
-                        top = &self.stack.items[self.stack.items.len - 1];
-                    }
-                }
-                return Entry{
-                    .dir = top.dir_it.dir,
-                    .basename = self.name_buffer.items[dirname_len + 1 ..],
-                    .path = self.name_buffer.items,
-                    .kind = base.kind,
-                };
-            } else {
-                self.stack.pop().dir_it.dir.close();
-            }
-        }
-    }
-
-    pub fn deinit(self: *Walker) void {
-        while (self.stack.popOrNull()) |*item| item.dir_it.dir.close();
-        self.stack.deinit();
-        self.name_buffer.deinit();
-    }
-};
-
-/// Recursively iterates over a directory.
-/// Must call `Walker.deinit` when done.
-/// `dir_path` must not end in a path separator.
-/// The order of returned file system entries is undefined.
-pub fn walkPath(allocator: *Allocator, dir_path: []const u8) !Walker {
-    assert(!mem.endsWith(u8, dir_path, path.sep_str));
-
-    var dir = try cwd().openDir(dir_path, .{ .iterate = true });
-    errdefer dir.close();
-
-    var name_buffer = std.ArrayList(u8).init(allocator);
-    errdefer name_buffer.deinit();
-
-    try name_buffer.appendSlice(dir_path);
-
-    var walker = Walker{
-        .stack = std.ArrayList(Walker.StackItem).init(allocator),
-        .name_buffer = name_buffer,
-    };
-
-    try walker.stack.append(Walker.StackItem{
-        .dir_it = dir.iterate(),
-        .dirname_len = dir_path.len,
-    });
-
-    return walker;
-}
+pub const walkPath = @compileError("deprecated: use Dir.walk");
 
 pub const OpenSelfExeError = error{
     SharingViolation,

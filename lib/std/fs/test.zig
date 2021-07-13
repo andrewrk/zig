@@ -927,8 +927,9 @@ test "walker" {
     }
 
     const tmp_path = try fs.path.join(allocator, &[_][]const u8{ "zig-cache", "tmp", tmp.sub_path[0..] });
+    const tmp_dir = try fs.cwd().openDir(tmp_path, .{ .iterate = true });
 
-    var walker = try fs.walkPath(testing.allocator, tmp_path);
+    var walker = tmp_dir.walk(testing.allocator);
     defer walker.deinit();
 
     i = 0;
@@ -941,7 +942,11 @@ test "walker" {
             try fs.path.join(allocator, &[_][]const u8{ expected_dir_name, name });
 
         var entry = (try walker.next()).?;
-        try testing.expectEqualStrings(expected_dir_name, try fs.path.relative(allocator, tmp_path, entry.path));
+        const entry_path = try entry.dir.realpathAlloc(allocator, entry.name);
+        defer allocator.free(entry_path);
+        const rel_entry_path = try fs.path.relative(allocator, tmp_path, entry_path);
+        defer allocator.free(rel_entry_path);
+        try testing.expectEqualStrings(expected_dir_name, rel_entry_path);
     }
 }
 
