@@ -6998,21 +6998,24 @@ fn readFile(allocator: *Allocator, filename: []const u8) ![]u8 {
       <pre>{#syntax#}@addWithOverflow(comptime T: type, a: T, b: T, result: *T) bool{#endsyntax#}</pre>
       <p>
       Performs {#syntax#}result.* = a + b{#endsyntax#}. If overflow or underflow occurs,
-          stores the overflowed bits in {#syntax#}result{#endsyntax#} and returns {#syntax#}true{#endsyntax#}.
-                  If no overflow or underflow occurs, returns {#syntax#}false{#endsyntax#}.
+      stores the overflowed bits in {#syntax#}result{#endsyntax#} and returns {#syntax#}true{#endsyntax#}.
+      If no overflow or underflow occurs, returns {#syntax#}false{#endsyntax#}.
       </p>
       {#header_close#}
+
       {#header_open|@alignCast#}
       <pre>{#syntax#}@alignCast(comptime alignment: u29, ptr: anytype) anytype{#endsyntax#}</pre>
       <p>
       {#syntax#}ptr{#endsyntax#} can be {#syntax#}*T{#endsyntax#}, {#syntax#}fn(){#endsyntax#}, {#syntax#}?*T{#endsyntax#},
-                      {#syntax#}?fn(){#endsyntax#}, or {#syntax#}[]T{#endsyntax#}. It returns the same type as {#syntax#}ptr{#endsyntax#}
+      {#syntax#}?fn(){#endsyntax#}, or {#syntax#}[]T{#endsyntax#}. It returns the same type as {#syntax#}ptr{#endsyntax#}
       except with the alignment adjusted to the new value.
       </p>
-      <p>A {#link|pointer alignment safety check|Incorrect Pointer Alignment#} is added
-      to the generated code to make sure the pointer is aligned as promised.</p>
-
+      <p>
+      A {#link|pointer alignment safety check|Incorrect Pointer Alignment#} is added
+      to the generated code to make sure the pointer is aligned as promised.
+      </p>
       {#header_close#}
+
       {#header_open|@alignOf#}
       <pre>{#syntax#}@alignOf(comptime T: type) comptime_int{#endsyntax#}</pre>
       <p>
@@ -7091,6 +7094,7 @@ fn func(y: *i32) void {
       an integer or an enum.
       </p>
       {#header_close#}
+
       {#header_open|@atomicRmw#}
       <pre>{#syntax#}@atomicRmw(comptime T: type, ptr: *T, comptime op: builtin.AtomicRmwOp, operand: T, comptime ordering: builtin.AtomicOrder) T{#endsyntax#}</pre>
       <p>
@@ -7105,10 +7109,8 @@ fn func(y: *i32) void {
       </p>
       <ul>
         <li>{#syntax#}.Xchg{#endsyntax#} - stores the operand unmodified. Supports enums, integers and floats.</li>
-        <li>{#syntax#}.Add{#endsyntax#} - for integers, twos complement wraparound addition.
-            Also supports {#link|Floats#}.</li>
-        <li>{#syntax#}.Sub{#endsyntax#} - for integers, twos complement wraparound subtraction.
-            Also supports {#link|Floats#}.</li>
+        <li>{#syntax#}.Add{#endsyntax#} - for integers, twos complement wraparound addition. Also supports {#link|Floats#}.</li>
+        <li>{#syntax#}.Sub{#endsyntax#} - for integers, twos complement wraparound subtraction. Also supports {#link|Floats#}.</li>
         <li>{#syntax#}.And{#endsyntax#} - bitwise and</li>
         <li>{#syntax#}.Nand{#endsyntax#} - bitwise nand</li>
         <li>{#syntax#}.Or{#endsyntax#} - bitwise or</li>
@@ -7117,16 +7119,17 @@ fn func(y: *i32) void {
         <li>{#syntax#}.Min{#endsyntax#} - stores the operand if it is smaller. Supports integers and floats.</li>
       </ul>
       {#header_close#}
+
       {#header_open|@atomicStore#}
       <pre>{#syntax#}@atomicStore(comptime T: type, ptr: *T, value: T, comptime ordering: builtin.AtomicOrder) void{#endsyntax#}</pre>
       <p>
       This builtin function atomically stores a value.
       </p>
       <p>
-      {#syntax#}T{#endsyntax#} must be a pointer, a {#syntax#}bool{#endsyntax#}, a float,
-      an integer or an enum.
+      {#syntax#}T{#endsyntax#} must be a pointer, a {#syntax#}bool{#endsyntax#}, a float, an integer or an enum.
       </p>
       {#header_close#}
+
       {#header_open|@bitCast#}
       <pre>{#syntax#}@bitCast(comptime DestType: type, value: anytype) DestType{#endsyntax#}</pre>
       <p>
@@ -7142,8 +7145,8 @@ fn func(y: *i32) void {
       Can be used for these things for example:
       </p>
       <ul>
-          <li>Convert {#syntax#}f32{#endsyntax#} to {#syntax#}u32{#endsyntax#} bits</li>
-          <li>Convert {#syntax#}i32{#endsyntax#} to {#syntax#}u32{#endsyntax#} preserving twos complement</li>
+        <li>Convert {#syntax#}f32{#endsyntax#} to {#syntax#}u32{#endsyntax#} bits</li>
+        <li>Convert {#syntax#}i32{#endsyntax#} to {#syntax#}u32{#endsyntax#} preserving twos complement</li>
       </ul>
       <p>
       Works at compile-time if {#syntax#}value{#endsyntax#} is known at compile time. It's a compile error to bitcast a struct to a scalar type of the same size since structs have undefined layout. However if the struct is packed then it works.
@@ -7167,11 +7170,11 @@ fn func(y: *i32) void {
       <pre>{#syntax#}@boolToInt(value: bool) u1{#endsyntax#}</pre>
       <p>
       Converts {#syntax#}true{#endsyntax#} to {#syntax#}u1(1){#endsyntax#} and {#syntax#}false{#endsyntax#} to
-                  {#syntax#}u1(0){#endsyntax#}.
+      {#syntax#}u1(0){#endsyntax#}.
       </p>
       <p>
       If the value is known at compile-time, the return type is {#syntax#}comptime_int{#endsyntax#}
-          instead of {#syntax#}u1{#endsyntax#}.
+      instead of {#syntax#}u1{#endsyntax#}.
       </p>
       {#header_close#}
 
@@ -7198,8 +7201,8 @@ fn func(y: *i32) void {
       <p>
       This function is only valid within function scope.
       </p>
-
       {#header_close#}
+
       {#header_open|@mulAdd#}
       <pre>{#syntax#}@mulAdd(comptime T: type, a: T, b: T, c: T) T{#endsyntax#}</pre>
       <p>
@@ -7213,8 +7216,12 @@ fn func(y: *i32) void {
 
       {#header_open|@byteSwap#}
       <pre>{#syntax#}@byteSwap(comptime T: type, operand: T) T{#endsyntax#}</pre>
-      <p>{#syntax#}T{#endsyntax#} must be an integer type with bit count evenly divisible by 8.</p>
-      <p>{#syntax#}operand{#endsyntax#} may be an {#link|integer|Integers#} or {#link|vector|Vectors#}.</p>
+      <p>
+      {#syntax#}T{#endsyntax#} must be an integer type with bit count evenly divisible by 8.
+      </p>
+      <p>
+      {#syntax#}operand{#endsyntax#} may be an {#link|integer|Integers#} or {#link|vector|Vectors#}.
+      </p>
       <p>
       Swaps the byte order of the integer. This converts a big endian integer to a little endian integer,
       and converts a little endian integer to a big endian integer.
@@ -7231,7 +7238,9 @@ fn func(y: *i32) void {
 
       {#header_open|@bitReverse#}
       <pre>{#syntax#}@bitReverse(comptime T: type, integer: T) T{#endsyntax#}</pre>
-      <p>{#syntax#}T{#endsyntax#} accepts any integer type.</p>
+      <p>
+      {#syntax#}T{#endsyntax#} accepts any integer type.
+      </p>
       <p>
       Reverses the bitpattern of an integer value, including the sign bit if applicable.
       </p>
@@ -7323,13 +7332,14 @@ pub const CallOptions = struct {
       <p>
       To define without a value, like this:
       </p>
-      <pre><code class="c">#define _GNU_SOURCE</code></pre>
+      <pre><code>#define _GNU_SOURCE</code></pre>
       <p>
       Use the void value, like this:
       </p>
       <pre>{#syntax#}@cDefine("_GNU_SOURCE", {}){#endsyntax#}</pre>
       {#see_also|Import from C Header File|@cInclude|@cImport|@cUndef|void#}
       {#header_close#}
+
       {#header_open|@cImport#}
       <pre>{#syntax#}@cImport(expression) type{#endsyntax#}</pre>
       <p>
@@ -7339,7 +7349,7 @@ pub const CallOptions = struct {
       </p>
       <p>
       {#syntax#}expression{#endsyntax#} is interpreted at compile time. The builtin functions
-          {#syntax#}@cInclude{#endsyntax#}, {#syntax#}@cDefine{#endsyntax#}, and {#syntax#}@cUndef{#endsyntax#} work
+      {#syntax#}@cInclude{#endsyntax#}, {#syntax#}@cDefine{#endsyntax#}, and {#syntax#}@cUndef{#endsyntax#} work
       within this expression, appending to a temporary buffer which is then parsed as C code.
       </p>
       <p>
@@ -7350,11 +7360,12 @@ pub const CallOptions = struct {
       Reasons for having multiple {#syntax#}@cImport{#endsyntax#} expressions would be:
       </p>
       <ul>
-          <li>To avoid a symbol collision, for example if foo.h and bar.h both <code>#define CONNECTION_COUNT</code></li>
+        <li>To avoid a symbol collision, for example if foo.h and bar.h both <code>#define CONNECTION_COUNT</code></li>
         <li>To analyze the C code with different preprocessor defines</li>
       </ul>
       {#see_also|Import from C Header File|@cInclude|@cDefine|@cUndef#}
       {#header_close#}
+
       {#header_open|@cInclude#}
       <pre>{#syntax#}@cInclude(comptime path: []u8){#endsyntax#}</pre>
       <p>
@@ -7410,9 +7421,12 @@ fn cmpxchgStrongButNotAtomic(comptime T: type, ptr: *T, expected_value: T, new_v
       {#syntax#}T{#endsyntax#} must be a pointer, a {#syntax#}bool{#endsyntax#}, a float,
       an integer or an enum.
       </p>
-      <p>{#syntax#}@typeInfo(@TypeOf(ptr)).Pointer.alignment{#endsyntax#} must be {#syntax#}>= @sizeOf(T).{#endsyntax#}</p>
+      <p>
+      {#syntax#}@typeInfo(@TypeOf(ptr)).Pointer.alignment{#endsyntax#} must be {#syntax#}>= @sizeOf(T).{#endsyntax#}
+      </p>
       {#see_also|Compile Variables|cmpxchgWeak#}
       {#header_close#}
+
       {#header_open|@cmpxchgWeak#}
       <pre>{#syntax#}@cmpxchgWeak(comptime T: type, ptr: *T, expected_value: T, new_value: T, success_order: AtomicOrder, fail_order: AtomicOrder) ?T{#endsyntax#}</pre>
       <p>
@@ -7439,7 +7453,9 @@ fn cmpxchgWeakButNotAtomic(comptime T: type, ptr: *T, expected_value: T, new_val
       {#syntax#}T{#endsyntax#} must be a pointer, a {#syntax#}bool{#endsyntax#}, a float,
       an integer or an enum.
       </p>
-      <p>{#syntax#}@typeInfo(@TypeOf(ptr)).Pointer.alignment{#endsyntax#} must be {#syntax#}>= @sizeOf(T).{#endsyntax#}</p>
+      <p>
+      {#syntax#}@typeInfo(@TypeOf(ptr)).Pointer.alignment{#endsyntax#} must be {#syntax#}>= @sizeOf(T).{#endsyntax#}
+      </p>
       {#see_also|Compile Variables|cmpxchgStrong#}
       {#header_close#}
 
@@ -7452,7 +7468,7 @@ fn cmpxchgWeakButNotAtomic(comptime T: type, ptr: *T, expected_value: T, new_val
       <p>
       There are several ways that code avoids being semantically checked, such as
       using {#syntax#}if{#endsyntax#} or {#syntax#}switch{#endsyntax#} with compile time constants,
-              and {#syntax#}comptime{#endsyntax#} functions.
+      and {#syntax#}comptime{#endsyntax#} functions.
       </p>
       {#header_close#}
 
@@ -7487,9 +7503,6 @@ test "main" {
     print("Runtime in main, num1 = {}.\n", .{num1});
 }
       {#code_end#}
-      <p>
-      will ouput:
-      </p>
       <p>
       If all {#syntax#}@compileLog{#endsyntax#} calls are removed or
       not encountered by analysis, the
@@ -7544,43 +7557,52 @@ test "main" {
       <pre>{#syntax#}@divExact(numerator: T, denominator: T) T{#endsyntax#}</pre>
       <p>
       Exact division. Caller guarantees {#syntax#}denominator != 0{#endsyntax#} and
-          {#syntax#}@divTrunc(numerator, denominator) * denominator == numerator{#endsyntax#}.
+      {#syntax#}@divTrunc(numerator, denominator) * denominator == numerator{#endsyntax#}.
       </p>
       <ul>
-          <li>{#syntax#}@divExact(6, 3) == 2{#endsyntax#}</li>
-          <li>{#syntax#}@divExact(a, b) * b == a{#endsyntax#}</li>
+        <li>{#syntax#}@divExact(6, 3) == 2{#endsyntax#}</li>
+        <li>{#syntax#}@divExact(a, b) * b == a{#endsyntax#}</li>
       </ul>
-      <p>For a function that returns a possible error code, use {#syntax#}@import("std").math.divExact{#endsyntax#}.</p>
+      <p>
+      For a function that returns a possible error code, use {#syntax#}@import("std").math.divExact{#endsyntax#}.
+      </p>
       {#see_also|@divTrunc|@divFloor#}
       {#header_close#}
+
       {#header_open|@divFloor#}
       <pre>{#syntax#}@divFloor(numerator: T, denominator: T) T{#endsyntax#}</pre>
       <p>
       Floored division. Rounds toward negative infinity. For unsigned integers it is
       the same as {#syntax#}numerator / denominator{#endsyntax#}. Caller guarantees {#syntax#}denominator != 0{#endsyntax#} and
-              {#syntax#}!(@typeInfo(T) == .Int and T.is_signed and numerator == std.math.minInt(T) and denominator == -1){#endsyntax#}.
+      {#syntax#}!(@typeInfo(T) == .Int and T.is_signed and numerator == std.math.minInt(T) and denominator == -1){#endsyntax#}.
       </p>
       <ul>
-          <li>{#syntax#}@divFloor(-5, 3) == -2{#endsyntax#}</li>
-          <li>{#syntax#}(@divFloor(a, b) * b) + @mod(a, b) == a{#endsyntax#}</li>
+        <li>{#syntax#}@divFloor(-5, 3) == -2{#endsyntax#}</li>
+        <li>{#syntax#}(@divFloor(a, b) * b) + @mod(a, b) == a{#endsyntax#}</li>
       </ul>
-      <p>For a function that returns a possible error code, use {#syntax#}@import("std").math.divFloor{#endsyntax#}.</p>
+      <p>
+      For a function that returns a possible error code, use {#syntax#}@import("std").math.divFloor{#endsyntax#}.
+      </p>
       {#see_also|@divTrunc|@divExact#}
       {#header_close#}
+
       {#header_open|@divTrunc#}
       <pre>{#syntax#}@divTrunc(numerator: T, denominator: T) T{#endsyntax#}</pre>
       <p>
       Truncated division. Rounds toward zero. For unsigned integers it is
       the same as {#syntax#}numerator / denominator{#endsyntax#}. Caller guarantees {#syntax#}denominator != 0{#endsyntax#} and
-              {#syntax#}!(@typeInfo(T) == .Int and T.is_signed and numerator == std.math.minInt(T) and denominator == -1){#endsyntax#}.
+      {#syntax#}!(@typeInfo(T) == .Int and T.is_signed and numerator == std.math.minInt(T) and denominator == -1){#endsyntax#}.
       </p>
       <ul>
-          <li>{#syntax#}@divTrunc(-5, 3) == -1{#endsyntax#}</li>
-          <li>{#syntax#}(@divTrunc(a, b) * b) + @rem(a, b) == a{#endsyntax#}</li>
+        <li>{#syntax#}@divTrunc(-5, 3) == -1{#endsyntax#}</li>
+        <li>{#syntax#}(@divTrunc(a, b) * b) + @rem(a, b) == a{#endsyntax#}</li>
       </ul>
-      <p>For a function that returns a possible error code, use {#syntax#}@import("std").math.divTrunc{#endsyntax#}.</p>
+      <p>
+      For a function that returns a possible error code, use {#syntax#}@import("std").math.divTrunc{#endsyntax#}.
+      </p>
       {#see_also|@divFloor|@divExact#}
       {#header_close#}
+
       {#header_open|@embedFile#}
       <pre>{#syntax#}@embedFile(comptime path: []const u8) *const [N:0]u8{#endsyntax#}</pre>
       <p>
@@ -7637,9 +7659,9 @@ test "main" {
       Supports the following types:
       </p>
       <ul>
-          <li>{#link|The Global Error Set#}</li>
-          <li>{#link|Error Set Type#}</li>
-          <li>{#link|Error Union Type#}</li>
+        <li>{#link|The Global Error Set#}</li>
+        <li>{#link|Error Set Type#}</li>
+        <li>{#link|Error Union Type#}</li>
       </ul>
       <p>
       Converts an error to the integer representation of an error.
@@ -7668,10 +7690,8 @@ test "main" {
       <code>declaration</code> must be one of two things:
       </p>
       <ul>
-        <li>An identifier ({#syntax#}x{#endsyntax#}) identifying a {#link|function|Functions#} or a
-          {#link|variable|Container Level Variables#}.</li>
-        <li>Field access ({#syntax#}x.y{#endsyntax#}) looking up a {#link|function|Functions#} or a
-          {#link|variable|Container Level Variables#}.</li>
+        <li>An identifier ({#syntax#}x{#endsyntax#}) identifying a {#link|function|Functions#} or a {#link|variable|Container Level Variables#}.</li>
+        <li>Field access ({#syntax#}x.y{#endsyntax#}) looking up a {#link|function|Functions#} or a {#link|variable|Container Level Variables#}.</li>
       </ul>
       <p>
       This builtin can be called from a {#link|comptime#} block to conditionally export symbols.
@@ -7686,12 +7706,16 @@ comptime {
 
 fn internalName() callconv(.C) void {}
       {#code_end#}
-      <p>This is equivalent to:</p>
+      <p>
+      This is equivalent to:
+      </p>
       {#code_begin|obj#}
 export fn foo() void {}
       {#code_end#}
-      <p>Note that even when using {#syntax#}export{#endsyntax#}, {#syntax#}@"foo"{#endsyntax#} syntax can
-      be used to choose any string for the symbol name:</p>
+      <p>
+      Note that even when using {#syntax#}export{#endsyntax#}, {#syntax#}@"foo"{#endsyntax#} syntax can
+      be used to choose any string for the symbol name:
+      </p>
       {#code_begin|obj#}
 export fn @"A function name that is a complete sentence."() void {}
       {#code_end#}
@@ -7723,9 +7747,10 @@ export fn @"A function name that is a complete sentence."() void {}
 
       {#header_open|@field#}
       <pre>{#syntax#}@field(lhs: anytype, comptime field_name: []const u8) (field){#endsyntax#}</pre>
-      <p>Performs field access by a compile-time string. Works on both fields and declarations.
+      <p>
+      Performs field access by a compile-time string. Works on both fields and declarations.
       </p>
-       {#code_begin|test#}
+      {#code_begin|test#}
 const std = @import("std");
 
 const Point = struct {
@@ -7755,12 +7780,10 @@ test "decl access by string" {
     try expect(@field(Point, "z") == 2);
 }
       {#code_end#}
-
       {#header_close#}
 
       {#header_open|@fieldParentPtr#}
-      <pre>{#syntax#}@fieldParentPtr(comptime ParentType: type, comptime field_name: []const u8,
-    field_ptr: *T) *ParentType{#endsyntax#}</pre>
+      <pre>{#syntax#}@fieldParentPtr(comptime ParentType: type, comptime field_name: []const u8, field_ptr: *T) *ParentType{#endsyntax#}</pre>
       <p>
       Given a pointer to a field, returns the base pointer of a struct.
       </p>
@@ -7885,7 +7908,9 @@ test "@hasDecl" {
 
       {#header_open|@hasField#}
       <pre>{#syntax#}@hasField(comptime Container: type, comptime name: []const u8) bool{#endsyntax#}</pre>
-      <p>Returns whether the field name of a struct, union, or enum exists.</p>
+      <p>
+      Returns whether the field name of a struct, union, or enum exists.
+      </p>
       <p>
       The result is a compile time constant.
       </p>
@@ -7918,10 +7943,8 @@ test "@hasDecl" {
       The following packages are always available:
       </p>
       <ul>
-          <li>{#syntax#}@import("std"){#endsyntax#} - Zig Standard Library</li>
-          <li>{#syntax#}@import("builtin"){#endsyntax#} - Target-specific information
-              The command <code>zig build-exe --show-builtin</code> outputs the source to stdout for reference.
-          </li>
+        <li>{#syntax#}@import("std"){#endsyntax#} - Zig Standard Library</li>
+        <li>{#syntax#}@import("builtin"){#endsyntax#} - Target-specific information. The command <code>zig build-exe --show-builtin</code> outputs the source to stdout for reference.</li>
       </ul>
       {#see_also|Compile Variables|@embedFile#}
       {#header_close#}
@@ -7970,7 +7993,8 @@ test "@hasDecl" {
       {#header_open|@intToFloat#}
       <pre>{#syntax#}@intToFloat(comptime DestType: type, int: anytype) DestType{#endsyntax#}</pre>
       <p>
-      Converts an integer to the closest floating point representation. To convert the other way, use {#link|@floatToInt#}. This cast is always safe.
+      Converts an integer to the closest floating point representation.
+      To convert the other way, use {#link|@floatToInt#}. This cast is always safe.
       </p>
       {#header_close#}
 
@@ -7999,7 +8023,9 @@ test "@hasDecl" {
       <p>
       The optimizer is intelligent enough to turn the above snippet into a memcpy.
       </p>
-      <p>There is also a standard library function for this:</p>
+      <p>
+      There is also a standard library function for this:
+      </p>
       <pre>{#syntax#}const mem = @import("std").mem;
 mem.copy(u8, dest[0..byte_count], source[0..byte_count]);{#endsyntax#}</pre>
       {#header_close#}
@@ -8017,7 +8043,9 @@ mem.copy(u8, dest[0..byte_count], source[0..byte_count]);{#endsyntax#}</pre>
       <p>
       The optimizer is intelligent enough to turn the above snippet into a memset.
       </p>
-      <p>There is also a standard library function for this:</p>
+      <p>
+      There is also a standard library function for this:
+      </p>
       <pre>{#syntax#}const mem = @import("std").mem;
 mem.set(u8, dest, c);{#endsyntax#}</pre>
       {#header_close#}
@@ -8072,10 +8100,12 @@ test "@wasmMemoryGrow" {
       {#syntax#}numerator % denominator{#endsyntax#}. Caller guarantees {#syntax#}denominator > 0{#endsyntax#}.
       </p>
       <ul>
-          <li>{#syntax#}@mod(-5, 3) == 1{#endsyntax#}</li>
-          <li>{#syntax#}(@divFloor(a, b) * b) + @mod(a, b) == a{#endsyntax#}</li>
+        <li>{#syntax#}@mod(-5, 3) == 1{#endsyntax#}</li>
+        <li>{#syntax#}(@divFloor(a, b) * b) + @mod(a, b) == a{#endsyntax#}</li>
       </ul>
-      <p>For a function that returns an error code, see {#syntax#}@import("std").math.mod{#endsyntax#}.</p>
+      <p>
+      For a function that returns an error code, see {#syntax#}@import("std").math.mod{#endsyntax#}.
+      </p>
       {#see_also|@rem#}
       {#header_close#}
 
@@ -8083,8 +8113,8 @@ test "@wasmMemoryGrow" {
       <pre>{#syntax#}@mulWithOverflow(comptime T: type, a: T, b: T, result: *T) bool{#endsyntax#}</pre>
       <p>
       Performs {#syntax#}result.* = a * b{#endsyntax#}. If overflow or underflow occurs,
-          stores the overflowed bits in {#syntax#}result{#endsyntax#} and returns {#syntax#}true{#endsyntax#}.
-                  If no overflow or underflow occurs, returns {#syntax#}false{#endsyntax#}.
+      stores the overflowed bits in {#syntax#}result{#endsyntax#} and returns {#syntax#}true{#endsyntax#}.
+      If no overflow or underflow occurs, returns {#syntax#}false{#endsyntax#}.
       </p>
       {#header_close#}
 
@@ -8096,8 +8126,9 @@ test "@wasmMemoryGrow" {
       if there is not one specified, the {#syntax#}std.builtin.default_panic{#endsyntax#}
       function from {#syntax#}std/builtin.zig{#endsyntax#}.
       </p>
-      <p>Generally it is better to use {#syntax#}@import("std").debug.panic{#endsyntax#}.
-          However, {#syntax#}@panic{#endsyntax#} can be useful for 2 scenarios:
+      <p>
+      Generally it is better to use {#syntax#}@import("std").debug.panic{#endsyntax#}.
+      However, {#syntax#}@panic{#endsyntax#} can be useful for 2 scenarios:
       </p>
       <ul>
         <li>From library code, calling the programmer's panic function if they exposed one in the root source file.</li>
@@ -8108,7 +8139,9 @@ test "@wasmMemoryGrow" {
 
       {#header_open|@popCount#}
       <pre>{#syntax#}@popCount(comptime T: type, integer: T){#endsyntax#}</pre>
-      <p>Counts the number of bits set in an integer.</p>
+      <p>
+      Counts the number of bits set in an integer.
+      </p>
       <p>
       If {#syntax#}integer{#endsyntax#} is known at {#link|comptime#},
       the return type is {#syntax#}comptime_int{#endsyntax#}.
@@ -8135,13 +8168,14 @@ test "@wasmMemoryGrow" {
       Converts {#syntax#}value{#endsyntax#} to a {#syntax#}usize{#endsyntax#} which is the address of the pointer. {#syntax#}value{#endsyntax#} can be one of these types:
       </p>
       <ul>
-          <li>{#syntax#}*T{#endsyntax#}</li>
-          <li>{#syntax#}?*T{#endsyntax#}</li>
-          <li>{#syntax#}fn(){#endsyntax#}</li>
-          <li>{#syntax#}?fn(){#endsyntax#}</li>
+        <li>{#syntax#}*T{#endsyntax#}</li>
+        <li>{#syntax#}?*T{#endsyntax#}</li>
+        <li>{#syntax#}fn(){#endsyntax#}</li>
+        <li>{#syntax#}?fn(){#endsyntax#}</li>
       </ul>
-      <p>To convert the other way, use {#link|@intToPtr#}</p>
-
+      <p>
+      To convert the other way, use {#link|@intToPtr#}
+      </p>
       {#header_close#}
 
       {#header_open|@rem#}
@@ -8151,10 +8185,12 @@ test "@wasmMemoryGrow" {
       {#syntax#}numerator % denominator{#endsyntax#}. Caller guarantees {#syntax#}denominator > 0{#endsyntax#}.
       </p>
       <ul>
-          <li>{#syntax#}@rem(-5, 3) == -2{#endsyntax#}</li>
-          <li>{#syntax#}(@divTrunc(a, b) * b) + @rem(a, b) == a{#endsyntax#}</li>
+        <li>{#syntax#}@rem(-5, 3) == -2{#endsyntax#}</li>
+        <li>{#syntax#}(@divTrunc(a, b) * b) + @rem(a, b) == a{#endsyntax#}</li>
       </ul>
-      <p>For a function that returns an error code, see {#syntax#}@import("std").math.rem{#endsyntax#}.</p>
+      <p>
+      For a function that returns an error code, see {#syntax#}@import("std").math.rem{#endsyntax#}.
+      </p>
       {#see_also|@mod#}
       {#header_close#}
 
@@ -8173,6 +8209,7 @@ test "@wasmMemoryGrow" {
       a calling function, the returned address will apply to the calling function.
       </p>
       {#header_close#}
+
       {#header_open|@setAlignStack#}
       <pre>{#syntax#}@setAlignStack(comptime alignment: u29){#endsyntax#}</pre>
       <p>
@@ -8208,7 +8245,9 @@ test "foo" {
     }
 }
       {#code_end#}
-      <p>Now we use {#syntax#}@setEvalBranchQuota{#endsyntax#}:</p>
+      <p>
+      Now we use {#syntax#}@setEvalBranchQuota{#endsyntax#}:
+      </p>
       {#code_begin|test#}
 test "foo" {
     comptime {
@@ -8218,7 +8257,6 @@ test "foo" {
     }
 }
       {#code_end#}
-
       {#see_also|comptime#}
       {#header_close#}
 
@@ -8234,20 +8272,17 @@ pub const FloatMode = enum {
 };
       {#code_end#}
       <ul>
-        <li>
-            {#syntax#}Strict{#endsyntax#} (default) - Floating point operations follow strict IEEE compliance.
-        </li>
-        <li>
-            {#syntax#}Optimized{#endsyntax#} - Floating point operations may do all of the following:
-          <ul>
-            <li>Assume the arguments and result are not NaN. Optimizations are required to retain defined behavior over NaNs, but the value of the result is undefined.</li>
-            <li>Assume the arguments and result are not +/-Inf. Optimizations are required to retain defined behavior over +/-Inf, but the value of the result is undefined.</li>
-            <li>Treat the sign of a zero argument or result as insignificant.</li>
-            <li>Use the reciprocal of an argument rather than perform division.</li>
-            <li>Perform floating-point contraction (e.g. fusing a multiply followed by an addition into a fused multiply-and-add).</li>
-            <li>Perform algebraically equivalent transformations that may change results in floating point (e.g. reassociate).</li>
-          </ul>
-          This is equivalent to <code>-ffast-math</code> in GCC.
+        <li>{#syntax#}Strict{#endsyntax#} (default) - Floating point operations follow strict IEEE compliance.</li>
+        <li>{#syntax#}Optimized{#endsyntax#} - Floating point operations may do all of the following:
+        <ul>
+          <li>Assume the arguments and result are not NaN. Optimizations are required to retain defined behavior over NaNs, but the value of the result is undefined.</li>
+          <li>Assume the arguments and result are not +/-Inf. Optimizations are required to retain defined behavior over +/-Inf, but the value of the result is undefined.</li>
+          <li>Treat the sign of a zero argument or result as insignificant.</li>
+          <li>Use the reciprocal of an argument rather than perform division.</li>
+          <li>Perform floating-point contraction (e.g. fusing a multiply followed by an addition into a fused multiply-and-add).</li>
+          <li>Perform algebraically equivalent transformations that may change results in floating point (e.g. reassociate).</li>
+        </ul>
+        This is equivalent to <code>-ffast-math</code> in GCC.
         </li>
       </ul>
       <p>
@@ -8286,9 +8321,10 @@ test "@setRuntimeSafety" {
     }
 }
       {#code_end#}
-      <p>Note: it is <a href="https://github.com/ziglang/zig/issues/978">planned</a> to replace
-      {#syntax#}@setRuntimeSafety{#endsyntax#} with <code>@optimizeFor</code></p>
-
+      <p>
+      Note: it is <a href="https://github.com/ziglang/zig/issues/978">planned</a> to replace
+      {#syntax#}@setRuntimeSafety{#endsyntax#} with <code>@optimizeFor</code>
+      </p>
       {#header_close#}
 
       {#header_open|@shlExact#}
@@ -8299,7 +8335,7 @@ test "@setRuntimeSafety" {
       </p>
       <p>
       The type of {#syntax#}shift_amt{#endsyntax#} is an unsigned integer with {#syntax#}log2(T.bit_count){#endsyntax#} bits.
-              This is because {#syntax#}shift_amt >= T.bit_count{#endsyntax#} is undefined behavior.
+      This is because {#syntax#}shift_amt >= T.bit_count{#endsyntax#} is undefined behavior.
       </p>
       {#see_also|@shrExact|@shlWithOverflow#}
       {#header_close#}
@@ -8308,12 +8344,12 @@ test "@setRuntimeSafety" {
       <pre>{#syntax#}@shlWithOverflow(comptime T: type, a: T, shift_amt: Log2T, result: *T) bool{#endsyntax#}</pre>
       <p>
       Performs {#syntax#}result.* = a << b{#endsyntax#}. If overflow or underflow occurs,
-                 stores the overflowed bits in {#syntax#}result{#endsyntax#} and returns {#syntax#}true{#endsyntax#}.
-                         If no overflow or underflow occurs, returns {#syntax#}false{#endsyntax#}.
+      stores the overflowed bits in {#syntax#}result{#endsyntax#} and returns {#syntax#}true{#endsyntax#}.
+      If no overflow or underflow occurs, returns {#syntax#}false{#endsyntax#}.
       </p>
       <p>
       The type of {#syntax#}shift_amt{#endsyntax#} is an unsigned integer with {#syntax#}log2(T.bit_count){#endsyntax#} bits.
-              This is because {#syntax#}shift_amt >= T.bit_count{#endsyntax#} is undefined behavior.
+      This is because {#syntax#}shift_amt >= T.bit_count{#endsyntax#} is undefined behavior.
       </p>
       {#see_also|@shlExact|@shrExact#}
       {#header_close#}
@@ -8326,7 +8362,7 @@ test "@setRuntimeSafety" {
       </p>
       <p>
       The type of {#syntax#}shift_amt{#endsyntax#} is an unsigned integer with {#syntax#}log2(T.bit_count){#endsyntax#} bits.
-              This is because {#syntax#}shift_amt >= T.bit_count{#endsyntax#} is undefined behavior.
+      This is because {#syntax#}shift_amt >= T.bit_count{#endsyntax#} is undefined behavior.
       </p>
       {#see_also|@shlExact|@shlWithOverflow#}
       {#header_close#}
@@ -8421,13 +8457,9 @@ test "vector @splat" {
       Not every operator is available for every vector element type:
       </p>
       <ul>
-          <li>{#syntax#}.And{#endsyntax#}, {#syntax#}.Or{#endsyntax#},
-            {#syntax#}.Xor{#endsyntax#} are available for
-            {#syntax#}bool{#endsyntax#} vectors,</li>
-          <li>{#syntax#}.Min{#endsyntax#}, {#syntax#}.Max{#endsyntax#},
-            {#syntax#}.Add{#endsyntax#}, {#syntax#}.Mul{#endsyntax#} are
-            available for {#link|floating point|Floats#} vectors,</li>
-          <li>Every operator is available for {#link|integer|Integers#} vectors.
+        <li>{#syntax#}.And{#endsyntax#}, {#syntax#}.Or{#endsyntax#}, {#syntax#}.Xor{#endsyntax#} are available for {#syntax#}bool{#endsyntax#} vectors,</li>
+        <li>{#syntax#}.Min{#endsyntax#}, {#syntax#}.Max{#endsyntax#}, {#syntax#}.Add{#endsyntax#}, {#syntax#}.Mul{#endsyntax#} are available for {#link|floating point|Floats#} vectors,</li>
+        <li>Every operator is available for {#link|integer|Integers#} vectors.</li>
       </ul>
       <p>
       Note that {#syntax#}.Add{#endsyntax#} and {#syntax#}.Mul{#endsyntax#}
@@ -8455,7 +8487,8 @@ test "vector @reduce" {
       {#header_open|@src#}
       <pre>{#syntax#}@src() std.builtin.SourceLocation{#endsyntax#}</pre>
       <p>
-      Returns a {#syntax#}SourceLocation{#endsyntax#} struct representing the function's name and location in the source code. This must be called in a function.
+      Returns a {#syntax#}SourceLocation{#endsyntax#} struct representing the function's name and location in the source code.
+      This must be called in a function.
       </p>
       {#code_begin|test#}
 const std = @import("std");
@@ -8475,6 +8508,7 @@ fn doTheTest() !void {
 }
       {#code_end#}
       {#header_close#}
+
       {#header_open|@sqrt#}
       <pre>{#syntax#}@sqrt(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8486,6 +8520,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@sin#}
       <pre>{#syntax#}@sin(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8497,6 +8532,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@cos#}
       <pre>{#syntax#}@cos(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8508,6 +8544,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@exp#}
       <pre>{#syntax#}@exp(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8519,6 +8556,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@exp2#}
       <pre>{#syntax#}@exp2(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8530,6 +8568,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@log#}
       <pre>{#syntax#}@log(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8541,6 +8580,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@log2#}
       <pre>{#syntax#}@log2(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8552,6 +8592,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@log10#}
       <pre>{#syntax#}@log10(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8563,6 +8604,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@fabs#}
       <pre>{#syntax#}@fabs(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8574,6 +8616,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@floor#}
       <pre>{#syntax#}@floor(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8585,6 +8628,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@ceil#}
       <pre>{#syntax#}@ceil(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8596,6 +8640,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@trunc#}
       <pre>{#syntax#}@trunc(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8607,6 +8652,7 @@ fn doTheTest() !void {
       <a href="https://github.com/ziglang/zig/issues/4026">some float operations are not yet implemented for all float types</a>.
       </p>
       {#header_close#}
+
       {#header_open|@round#}
       <pre>{#syntax#}@round(value: anytype) @TypeOf(value){#endsyntax#}</pre>
       <p>
@@ -8623,15 +8669,18 @@ fn doTheTest() !void {
       <pre>{#syntax#}@subWithOverflow(comptime T: type, a: T, b: T, result: *T) bool{#endsyntax#}</pre>
       <p>
       Performs {#syntax#}result.* = a - b{#endsyntax#}. If overflow or underflow occurs,
-          stores the overflowed bits in {#syntax#}result{#endsyntax#} and returns {#syntax#}true{#endsyntax#}.
-                  If no overflow or underflow occurs, returns {#syntax#}false{#endsyntax#}.
+      stores the overflowed bits in {#syntax#}result{#endsyntax#} and returns {#syntax#}true{#endsyntax#}.
+      If no overflow or underflow occurs, returns {#syntax#}false{#endsyntax#}.
       </p>
       {#header_close#}
 
       {#header_open|@tagName#}
       <pre>{#syntax#}@tagName(value: anytype) [:0]const u8{#endsyntax#}</pre>
       <p>
-      Converts an enum value or union value to a string literal representing the name.</p><p>If the enum is non-exhaustive and the tag value does not map to a name, it invokes safety-checked {#link|Undefined Behavior#}.
+      Converts an enum value or union value to a string literal representing the name.
+      </p>
+      <p>
+      If the enum is non-exhaustive and the tag value does not map to a name, it invokes safety-checked {#link|Undefined Behavior#}.
       </p>
       {#header_close#}
 
@@ -8714,38 +8763,39 @@ test "integer truncation" {
       It is available for the following types:
       </p>
       <ul>
-          <li>{#syntax#}type{#endsyntax#}</li>
-          <li>{#syntax#}noreturn{#endsyntax#}</li>
-          <li>{#syntax#}void{#endsyntax#}</li>
-          <li>{#syntax#}bool{#endsyntax#}</li>
-          <li>{#link|Integers#} - The maximum bit count for an integer type is {#syntax#}65535{#endsyntax#}.</li>
-          <li>{#link|Floats#}</li>
-          <li>{#link|Pointers#}</li>
-          <li>{#syntax#}comptime_int{#endsyntax#}</li>
-          <li>{#syntax#}comptime_float{#endsyntax#}</li>
-          <li>{#syntax#}@TypeOf(undefined){#endsyntax#}</li>
-          <li>{#syntax#}@TypeOf(null){#endsyntax#}</li>
-          <li>{#link|Arrays#}</li>
-          <li>{#link|Optionals#}</li>
-          <li>{#link|Error Set Type#}</li>
-          <li>{#link|Error Union Type#}</li>
-          <li>{#link|Vectors#}</li>
-          <li>{#link|opaque#}</li>
-          <li>{#link|@Frame#}</li>
-          <li>{#syntax#}anyframe{#endsyntax#}</li>
-          <li>{#link|struct#}</li>
-          <li>{#link|enum#}</li>
-          <li>{#link|Enum Literals#}</li>
-          <li>{#link|union#}</li>
+        <li>{#syntax#}type{#endsyntax#}</li>
+        <li>{#syntax#}noreturn{#endsyntax#}</li>
+        <li>{#syntax#}void{#endsyntax#}</li>
+        <li>{#syntax#}bool{#endsyntax#}</li>
+        <li>{#link|Integers#} - The maximum bit count for an integer type is {#syntax#}65535{#endsyntax#}.</li>
+        <li>{#link|Floats#}</li>
+        <li>{#link|Pointers#}</li>
+        <li>{#syntax#}comptime_int{#endsyntax#}</li>
+        <li>{#syntax#}comptime_float{#endsyntax#}</li>
+        <li>{#syntax#}@TypeOf(undefined){#endsyntax#}</li>
+        <li>{#syntax#}@TypeOf(null){#endsyntax#}</li>
+        <li>{#link|Arrays#}</li>
+        <li>{#link|Optionals#}</li>
+        <li>{#link|Error Set Type#}</li>
+        <li>{#link|Error Union Type#}</li>
+        <li>{#link|Vectors#}</li>
+        <li>{#link|opaque#}</li>
+        <li>{#link|@Frame#}</li>
+        <li>{#syntax#}anyframe{#endsyntax#}</li>
+        <li>{#link|struct#}</li>
+        <li>{#link|enum#}</li>
+        <li>{#link|Enum Literals#}</li>
+        <li>{#link|union#}</li>
       </ul>
       <p>
       For these types, {#syntax#}@Type{#endsyntax#} is not available:
       </p>
       <ul>
-          <li>{#link|Functions#}</li>
-          <li>BoundFn</li>
+        <li>{#link|Functions#}</li>
+        <li>BoundFn</li>
       </ul>
       {#header_close#}
+
       {#header_open|@typeInfo#}
       <pre>{#syntax#}@typeInfo(comptime T: type) std.builtin.TypeInfo{#endsyntax#}</pre>
       <p>
@@ -8764,7 +8814,6 @@ test "integer truncation" {
       This function returns the string representation of a type, as
       an array. It is equivalent to a string literal of the type name.
       </p>
-
       {#header_close#}
 
       {#header_open|@TypeOf#}
