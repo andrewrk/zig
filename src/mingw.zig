@@ -92,6 +92,10 @@ pub fn buildCRTFile(comp: *Compilation, crt_file: CRTFile) !void {
                     "-D_WIN32_WINNT=0x0f00",
                     "-D__MSVCRT_VERSION__=0x700",
                 });
+                if (std.mem.eql(u8, dep, "tlssup.c")) {
+                    // Can't let LTO drop symbols defined in this file (eg: _tls_index)
+                    try args.append("-fno-lto");
+                }
                 c_source_files[i] = .{
                     .src_path = try comp.zig_lib_directory.join(arena, &[_][]const u8{
                         "libc", "mingw", "crt", dep,

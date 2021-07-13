@@ -11,6 +11,12 @@ pub fn addCases(cases: *tests.StandaloneContext) void {
     cases.addBuildFile("test/standalone/main_pkg_path/build.zig", .{});
     cases.addBuildFile("test/standalone/shared_library/build.zig", .{});
     cases.addBuildFile("test/standalone/mix_o_files/build.zig", .{});
+    if (std.Target.current.os.tag == .macos) {
+        // TODO zld cannot link llvm-ir object files for LTO yet.
+        cases.addBuildFile("test/standalone/mix_c_files/build.zig", .{ .build_modes = false, .cross_targets = true });
+    } else {
+        cases.addBuildFile("test/standalone/mix_c_files/build.zig", .{ .build_modes = true, .cross_targets = true });
+    }
     cases.addBuildFile("test/standalone/global_linkage/build.zig", .{});
     cases.addBuildFile("test/standalone/static_c_lib/build.zig", .{});
     cases.addBuildFile("test/standalone/link_interdependent_static_c_libs/build.zig", .{});
