@@ -1468,7 +1468,9 @@ pub const ParseOptions = struct {
     allow_trailing_data: bool = false,
 };
 
-fn skipValue(tokens: *TokenStream) !void {
+const SkipValueError = error{UnexpectedJsonDepth} || TokenStream.Error;
+
+fn skipValue(tokens: *TokenStream) SkipValueError!void {
     const original_depth = tokens.stackUsed();
 
     // Return an error if no value is found
@@ -1530,7 +1532,83 @@ test "skipValue" {
     }
 }
 
-fn parseInternal(comptime T: type, token: Token, tokens: *TokenStream, options: ParseOptions) !T {
+fn ParseInternalError(comptime T: type) type {
+    // `inferred_types` is used to avoid infinite recursion for recursive type definitions.
+    const inferred_types = [_]type{};
+    return ParseInternalErrorImpl(T, &inferred_types);
+}
+
+fn ParseInternalErrorImpl(comptime T: type, comptime inferred_types: []const type) type {
+    for (inferred_types) |ty| {
+        if (T == ty) return error{};
+    }
+
+    switch (@typeInfo(T)) {
+        .Bool => return error{UnexpectedToken},
+        .Float, .ComptimeFloat => return error{UnexpectedToken} || std.fmt.ParseFloatError,
+        .Int, .ComptimeInt => {
+            return error{ UnexpectedToken, InvalidNumber, Overflow, InvalidCharacter } ||
+                std.fmt.ParseIntError || std.fmt.ParseFloatError;
+        },
+        .Optional => |optionalInfo| {
+            return ParseInternalErrorImpl(optionalInfo.child, inferred_types ++ [_]type{T});
+        },
+        .Enum => return error{UnexpectedToken} || std.fmt.ParseIntError || std.meta.IntToEnumError,
+        .Union => |unionInfo| {
+            if (unionInfo.tag_type) |_| {
+                var errors = error{NoUnionMembersMatched};
+                for (unionInfo.fields) |u_field| {
+                    errors = errors || ParseInternalErrorImpl(u_field.field_type, inferred_types ++ [_]type{T});
+                }
+                return errors;
+            } else {
+                @compileError("Unable to parse into untagged union '" ++ @typeName(T) ++ "'");
+            }
+        },
+        .Struct => |structInfo| {
+            var errors = error{
+                DuplicateJSONField,
+                UnexpectedEndOfJson,
+                UnexpectedToken,
+                UnexpectedValue,
+                UnknownField,
+                MissingField,
+            } || SkipValueError;
+            for (structInfo.fields) |field| {
+                errors = errors || ParseInternalErrorImpl(field.field_type, inferred_types ++ [_]type{T});
+            }
+            return errors;
+        },
+        .Array => |arrayInfo| {
+            return error{ UnexpectedEndOfJson, UnexpectedToken } || TokenStream.Error ||
+                UnescapeValidStringError ||
+                ParseInternalErrorImpl(arrayInfo.child, inferred_types ++ [_]type{T});
+        },
+        .Pointer => |ptrInfo| {
+            var errors = error{AllocatorRequired} || std.mem.Allocator.Error;
+            switch (ptrInfo.size) {
+                .One => {
+                    return errors || ParseInternalErrorImpl(ptrInfo.child, inferred_types ++ [_]type{T});
+                },
+                .Slice => {
+                    return errors || error{ UnexpectedEndOfJson, UnexpectedToken } ||
+                        ParseInternalErrorImpl(ptrInfo.child, inferred_types ++ [_]type{T}) ||
+                        UnescapeValidStringError || TokenStream.Error;
+                },
+                else => @compileError("Unable to parse into type '" ++ @typeName(T) ++ "'"),
+            }
+        },
+        else => return error{},
+    }
+    unreachable;
+}
+
+fn parseInternal(
+    comptime T: type,
+    token: Token,
+    tokens: *TokenStream,
+    options: ParseOptions,
+) ParseInternalError(T)!T {
     switch (@typeInfo(T)) {
         .Bool => {
             return switch (token) {
@@ -1794,7 +1872,11 @@ fn parseInternal(comptime T: type, token: Token, tokens: *TokenStream, options: 
     unreachable;
 }
 
-pub fn parse(comptime T: type, tokens: *TokenStream, options: ParseOptions) !T {
+pub fn ParseError(comptime T: type) type {
+    return ParseInternalError(T) || error{UnexpectedEndOfJson} || TokenStream.Error;
+}
+
+pub fn parse(comptime T: type, tokens: *TokenStream, options: ParseOptions) ParseError(T)!T {
     const token = (try tokens.next()) orelse return error.UnexpectedEndOfJson;
     const r = try parseInternal(T, token, tokens, options);
     errdefer parseFree(T, r, options);
@@ -2181,6 +2263,45 @@ test "parse into struct ignoring unknown fields" {
     try testing.expectEqualSlices(u8, "zig", r.language);
 }
 
+const ParseIntoRecursiveUnionDefinitionValue = union(enum) {
+    integer: i64,
+    array: []const ParseIntoRecursiveUnionDefinitionValue,
+};
+
+test "parse into recursive union definition" {
+    const T = struct {
+        values: ParseIntoRecursiveUnionDefinitionValue,
+    };
+    const ops = ParseOptions{ .allocator = testing.allocator };
+
+    const r = try parse(T, &std.json.TokenStream.init("{\"values\":[58]}"), ops);
+    defer parseFree(T, r, ops);
+
+    try testing.expectEqual(@as(i64, 58), r.values.array[0].integer);
+}
+
+const ParseIntoDoubleRecursiveUnionValueFirst = union(enum) {
+    integer: i64,
+    array: []const ParseIntoDoubleRecursiveUnionValueSecond,
+};
+
+const ParseIntoDoubleRecursiveUnionValueSecond = union(enum) {
+    boolean: bool,
+    array: []const ParseIntoDoubleRecursiveUnionValueFirst,
+};
+
+test "parse into double recursive union definition" {
+    const T = struct {
+        values: ParseIntoDoubleRecursiveUnionValueFirst,
+    };
+    const ops = ParseOptions{ .allocator = testing.allocator };
+
+    const r = try parse(T, &std.json.TokenStream.init("{\"values\":[[58]]}"), ops);
+    defer parseFree(T, r, ops);
+
+    try testing.expectEqual(@as(i64, 58), r.values.array[0].array[0].integer);
+}
+
 /// A non-stream JSON parser which constructs a tree of Value's.
 pub const Parser = struct {
     allocator: *Allocator,
@@ -2418,10 +2539,12 @@ pub const Parser = struct {
     }
 };
 
+pub const UnescapeValidStringError = error{InvalidUnicodeHexSymbol};
+
 /// Unescape a JSON string
 /// Only to be used on strings already validated by the parser
 /// (note the unreachable statements and lack of bounds checking)
-pub fn unescapeValidString(output: []u8, input: []const u8) !void {
+pub fn unescapeValidString(output: []u8, input: []const u8) UnescapeValidStringError!void {
     var inIndex: usize = 0;
     var outIndex: usize = 0;
 

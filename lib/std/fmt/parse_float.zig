@@ -349,7 +349,9 @@ fn caseInEql(a: []const u8, b: []const u8) bool {
     return true;
 }
 
-pub fn parseFloat(comptime T: type, s: []const u8) !T {
+pub const ParseFloatError = error{InvalidCharacter};
+
+pub fn parseFloat(comptime T: type, s: []const u8) ParseFloatError!T {
     if (s.len == 0 or (s.len == 1 and (s[0] == '+' or s[0] == '-'))) {
         return error.InvalidCharacter;
     }
