@@ -14,13 +14,11 @@ const assert = std.debug.assert;
 const target = std.Target.current;
 const Atomic = std.atomic.Atomic;
 
-pub const AutoResetEvent = @import("Thread/AutoResetEvent.zig");
 pub const Futex = @import("Thread/Futex.zig");
-pub const ResetEvent = @import("Thread/ResetEvent.zig");
-pub const StaticResetEvent = @import("Thread/StaticResetEvent.zig");
 pub const Mutex = @import("Thread/Mutex.zig");
+pub const Condvar = @import("Thread/Condvar.zig");
 pub const Semaphore = @import("Thread/Semaphore.zig");
-pub const Condition = @import("Thread/Condition.zig");
+pub const RwLock = @import("Thread/RwLock.zig");
 
 pub const spinLoopHint = @compileError("deprecated: use std.atomic.spinLoopHint");
 

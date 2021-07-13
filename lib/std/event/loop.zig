@@ -29,7 +29,7 @@ pub const Loop = struct {
     fs_thread: Thread,
     fs_queue: std.atomic.Queue(Request),
     fs_end_request: Request.Node,
-    fs_thread_wakeup: std.Thread.ResetEvent,
+    fs_thread_wakeup: std.Thread.Semaphore,
 
     /// For resources that have the same lifetime as the `Loop`.
     /// This is only used by `Loop` for the thread pool and associated resources.
@@ -168,11 +168,9 @@ pub const Loop = struct {
             .fs_end_request = .{ .data = .{ .msg = .end, .finish = .NoAction } },
             .fs_queue = std.atomic.Queue(Request).init(),
             .fs_thread = undefined,
-            .fs_thread_wakeup = undefined,
+            .fs_thread_wakeup = .{},
             .delay_queue = undefined,
         };
-        try self.fs_thread_wakeup.init();
-        errdefer self.fs_thread_wakeup.deinit();
         errdefer self.arena.deinit();
 
         // We need at least one of these in case the fs thread wants to use onNextTick
@@ -202,7 +200,6 @@ pub const Loop = struct {
 
     pub fn deinit(self: *Loop) void {
         self.deinitOsData();
-        self.fs_thread_wakeup.deinit();
         self.arena.deinit();
         self.* = undefined;
     }
@@ -660,9 +657,7 @@ pub const Loop = struct {
             extra_thread.join();
         }
 
-        @atomicStore(bool, &self.delay_queue.is_running, false, .SeqCst);
-        self.delay_queue.event.set();
-        self.delay_queue.thread.join();
+        self.delay_queue.deinit();
     }
 
     /// Runs the provided function asynchronously. The function's frame is allocated
@@ -785,47 +780,56 @@ pub const Loop = struct {
     }
 
     const DelayQueue = struct {
-        timer: std.time.Timer,
+        mutex: std.Thread.Mutex,
+        cond: std.Thread.Condvar,
         waiters: Waiters,
         thread: std.Thread,
-        event: std.Thread.AutoResetEvent,
         is_running: bool,
 
         /// Initialize the delay queue by spawning the timer thread
         /// and starting any timer resources.
         fn init(self: *DelayQueue) !void {
             self.* = DelayQueue{
-                .timer = try std.time.Timer.start(),
-                .waiters = DelayQueue.Waiters{
-                    .entries = std.atomic.Queue(anyframe).init(),
-                },
-                .event = std.Thread.AutoResetEvent{},
+                .mutex = .{},
+                .cond = .{},
+                .waiters = .{ .entries = std.atomic.Queue(anyframe).init() },
                 .is_running = true,
                 // Must be last so that it can read the other state, such as `is_running`.
                 .thread = try std.Thread.spawn(.{}, DelayQueue.run, .{self}),
             };
         }
 
+        fn deinit(self: *DelayQueue) void {
+            const held = self.mutex.acquire();
+            defer held.release();
+
+            self.is_running = false;
+            self.cond.broadcast();
+        }
+
         /// Entry point for the timer thread
         /// which waits for timer entries to expire and reschedules them.
         fn run(self: *DelayQueue) void {
-            const loop = @fieldParentPtr(Loop, "delay_queue", self);
+            while (true) {
+                const entry = blk: {
+                    var held = self.mutex.acquire();
+                    defer held.release();
 
-            while (@atomicLoad(bool, &self.is_running, .SeqCst)) {
-                const now = self.timer.read();
+                    while (self.is_running) {
+                        const now = std.time.now();
+                        break :blk self.waiters.popExpired(now) orelse {
+                            if (self.waiters.nextExpire()) |expires| {
+                                self.cond.timedWait(&held, expires - now) catch {};
+                            } else {
+                                self.cond.wait(&held);
+                            }
+                            continue;
+                        };
+                    }
+                };
 
-                if (self.waiters.popExpired(now)) |entry| {
-                    loop.onNextTick(&entry.node);
-                    continue;
-                }
-
-                if (self.waiters.nextExpire()) |expires| {
-                    if (now >= expires)
-                        continue;
-                    self.event.timedWait(expires - now) catch {};
-                } else {
-                    self.event.wait();
-                }
+                const loop = @fieldParentPtr(Loop, "delay_queue", self);
+                loop.onNextTick(&entry.node);
             }
         }
 
@@ -1422,7 +1426,7 @@ pub const Loop = struct {
     fn posixFsRequest(self: *Loop, request_node: *Request.Node) void {
         self.beginOneEvent(); // finished in posixFsRun after processing the msg
         self.fs_queue.put(request_node);
-        self.fs_thread_wakeup.set();
+        self.fs_thread_wakeup.post();
     }
 
     fn posixFsCancel(self: *Loop, request_node: *Request.Node) void {
@@ -1433,54 +1437,55 @@ pub const Loop = struct {
 
     fn posixFsRun(self: *Loop) void {
         nosuspend while (true) {
-            self.fs_thread_wakeup.reset();
-            while (self.fs_queue.get()) |node| {
-                switch (node.data.msg) {
-                    .end => return,
-                    .read => |*msg| {
-                        msg.result = os.read(msg.fd, msg.buf);
-                    },
-                    .readv => |*msg| {
-                        msg.result = os.readv(msg.fd, msg.iov);
-                    },
-                    .write => |*msg| {
-                        msg.result = os.write(msg.fd, msg.bytes);
-                    },
-                    .writev => |*msg| {
-                        msg.result = os.writev(msg.fd, msg.iov);
-                    },
-                    .pwrite => |*msg| {
-                        msg.result = os.pwrite(msg.fd, msg.bytes, msg.offset);
-                    },
-                    .pwritev => |*msg| {
-                        msg.result = os.pwritev(msg.fd, msg.iov, msg.offset);
-                    },
-                    .pread => |*msg| {
-                        msg.result = os.pread(msg.fd, msg.buf, msg.offset);
-                    },
-                    .preadv => |*msg| {
-                        msg.result = os.preadv(msg.fd, msg.iov, msg.offset);
-                    },
-                    .open => |*msg| {
-                        if (is_windows) unreachable; // TODO
-                        msg.result = os.openZ(msg.path, msg.flags, msg.mode);
-                    },
-                    .openat => |*msg| {
-                        if (is_windows) unreachable; // TODO
-                        msg.result = os.openatZ(msg.fd, msg.path, msg.flags, msg.mode);
-                    },
-                    .faccessat => |*msg| {
-                        msg.result = os.faccessatZ(msg.dirfd, msg.path, msg.mode, msg.flags);
-                    },
-                    .close => |*msg| os.close(msg.fd),
-                }
-                switch (node.data.finish) {
-                    .TickNode => |*tick_node| self.onNextTick(tick_node),
-                    .NoAction => {},
-                }
-                self.finishOneEvent();
-            }
             self.fs_thread_wakeup.wait();
+            const node = self.fs_queue.get() catch {
+                unreachable; // a post should ensure theres an item
+            };
+
+            switch (node.data.msg) {
+                .end => return,
+                .read => |*msg| {
+                    msg.result = os.read(msg.fd, msg.buf);
+                },
+                .readv => |*msg| {
+                    msg.result = os.readv(msg.fd, msg.iov);
+                },
+                .write => |*msg| {
+                    msg.result = os.write(msg.fd, msg.bytes);
+                },
+                .writev => |*msg| {
+                    msg.result = os.writev(msg.fd, msg.iov);
+                },
+                .pwrite => |*msg| {
+                    msg.result = os.pwrite(msg.fd, msg.bytes, msg.offset);
+                },
+                .pwritev => |*msg| {
+                    msg.result = os.pwritev(msg.fd, msg.iov, msg.offset);
+                },
+                .pread => |*msg| {
+                    msg.result = os.pread(msg.fd, msg.buf, msg.offset);
+                },
+                .preadv => |*msg| {
+                    msg.result = os.preadv(msg.fd, msg.iov, msg.offset);
+                },
+                .open => |*msg| {
+                    if (is_windows) unreachable; // TODO
+                    msg.result = os.openZ(msg.path, msg.flags, msg.mode);
+                },
+                .openat => |*msg| {
+                    if (is_windows) unreachable; // TODO
+                    msg.result = os.openatZ(msg.fd, msg.path, msg.flags, msg.mode);
+                },
+                .faccessat => |*msg| {
+                    msg.result = os.faccessatZ(msg.dirfd, msg.path, msg.mode, msg.flags);
+                },
+                .close => |*msg| os.close(msg.fd),
+            }
+            switch (node.data.finish) {
+                .TickNode => |*tick_node| self.onNextTick(tick_node),
+                .NoAction => {},
+            }
+            self.finishOneEvent();
         };
     }
 

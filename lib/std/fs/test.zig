@@ -862,18 +862,16 @@ test "open file with exclusive lock twice, make sure it waits" {
     errdefer file.close();
 
     const S = struct {
-        fn checkFn(dir: *fs.Dir, evt: *std.Thread.ResetEvent) !void {
+        fn checkFn(dir: *fs.Dir, sema: *std.Thread.Semaphore) !void {
             const file1 = try dir.createFile(filename, .{ .lock = .Exclusive });
             defer file1.close();
-            evt.set();
+            sema.post();
         }
     };
 
-    var evt: std.Thread.ResetEvent = undefined;
-    try evt.init();
-    defer evt.deinit();
+    var sema = std.Thread.Semaphore{};
 
-    const t = try std.Thread.spawn(.{}, S.checkFn, .{ &tmp.dir, &evt });
+    const t = try std.Thread.spawn(.{}, S.checkFn, .{ &tmp.dir, &sema });
     defer t.join();
 
     const SLEEP_TIMEOUT_NS = 10 * std.time.ns_per_ms;
@@ -885,7 +883,7 @@ test "open file with exclusive lock twice, make sure it waits" {
     }
     file.close();
     // No timeout to avoid failures on heavily loaded systems.
-    evt.wait();
+    sema.wait();
 }
 
 test "open file with exclusive nonblocking lock twice (absolute paths)" {

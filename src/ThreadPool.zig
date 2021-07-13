@@ -6,14 +6,13 @@
 const std = @import("std");
 const ThreadPool = @This();
 
-lock: std.Thread.Mutex = .{},
+mutex: std.Thread.Mutex = .{},
+cond: std.Thread.Condvar = .{},
 is_running: bool = true,
 allocator: *std.mem.Allocator,
 workers: []Worker,
 run_queue: RunQueue = .{},
-idle_queue: IdleQueue = .{},
 
-const IdleQueue = std.SinglyLinkedList(std.Thread.ResetEvent);
 const RunQueue = std.SinglyLinkedList(Runnable);
 const Runnable = struct {
     runFn: fn (*Runnable) void,
@@ -22,32 +21,25 @@ const Runnable = struct {
 const Worker = struct {
     pool: *ThreadPool,
     thread: std.Thread,
-    /// The node is for this worker only and must have an already initialized event
-    /// when the thread is spawned.
-    idle_node: IdleQueue.Node,
 
     fn run(worker: *Worker) void {
         while (true) {
-            const held = worker.pool.lock.acquire();
+            const run_node = blk: {
+                var held = worker.pool.mutex.acquire();
+                defer held.release();
 
-            if (worker.pool.run_queue.popFirst()) |run_node| {
-                held.release();
-                (run_node.data.runFn)(&run_node.data);
-                continue;
-            }
+                while (worker.pool.is_running) {
+                    break :blk worker.pool.run_queue.popFirst() orelse {
+                        worker.pool.cond.wait(&held);
+                        continue;
+                    };
+                }
 
-            if (worker.pool.is_running) {
-                worker.idle_node.data.reset();
+                return;
+            };
 
-                worker.pool.idle_queue.prepend(&worker.idle_node);
-                held.release();
-
-                worker.idle_node.data.wait();
-                continue;
-            }
-
-            held.release();
-            return;
+            const runnable = &run_node.data;
+            (runnable.runFn)(runnable);
         }
     }
 };
@@ -69,11 +61,6 @@ pub fn init(self: *ThreadPool, allocator: *std.mem.Allocator) !void {
     while (worker_index < worker_count) : (worker_index += 1) {
         const worker = &self.workers[worker_index];
         worker.pool = self;
-
-        // Each worker requires its ResetEvent to be pre-initialized.
-        try worker.idle_node.data.init();
-        errdefer worker.idle_node.data.deinit();
-
         worker.thread = try std.Thread.spawn(.{}, Worker.run, .{worker});
     }
 }
@@ -81,18 +68,16 @@ pub fn init(self: *ThreadPool, allocator: *std.mem.Allocator) !void {
 fn destroyWorkers(self: *ThreadPool, spawned: usize) void {
     for (self.workers[0..spawned]) |*worker| {
         worker.thread.join();
-        worker.idle_node.data.deinit();
     }
 }
 
 pub fn deinit(self: *ThreadPool) void {
     {
-        const held = self.lock.acquire();
+        const held = self.mutex.acquire();
         defer held.release();
 
         self.is_running = false;
-        while (self.idle_queue.popFirst()) |idle_node|
-            idle_node.data.set();
+        self.cond.broadcast();
     }
 
     self.destroyWorkers(self.workers.len);
@@ -116,13 +101,14 @@ pub fn spawn(self: *ThreadPool, comptime func: anytype, args: anytype) !void {
             const closure = @fieldParentPtr(@This(), "run_node", run_node);
             @call(.{}, func, closure.arguments);
 
-            const held = closure.pool.lock.acquire();
+            const held = closure.pool.mutex.acquire();
             defer held.release();
+
             closure.pool.allocator.destroy(closure);
         }
     };
 
-    const held = self.lock.acquire();
+    const held = self.mutex.acquire();
     defer held.release();
 
     const closure = try self.allocator.create(Closure);
@@ -132,7 +118,5 @@ pub fn spawn(self: *ThreadPool, comptime func: anytype, args: anytype) !void {
     };
 
     self.run_queue.prepend(&closure.run_node);
-
-    if (self.idle_queue.popFirst()) |idle_node|
-        idle_node.data.set();
+    self.cond.signal();
 }

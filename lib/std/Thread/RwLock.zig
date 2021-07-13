@@ -4,305 +4,276 @@
 // The MIT license requires this copyright notice to be included in all copies
 // and substantial portions of the software.
 
-//! A lock that supports one writer or many readers.
-//! This API is for kernel threads, not evented I/O.
-//! This API requires being initialized at runtime, and initialization
-//! can fail. Once initialized, the core operations cannot fail.
-
-impl: Impl,
+const std = @import("../std.zig");
+const Atomic = std.atomic.Atomic;
+const Futex = std.Thread.Futex;
 
 const RwLock = @This();
-const std = @import("../std.zig");
-const builtin = std.builtin;
-const assert = std.debug.assert;
-const Mutex = std.Thread.Mutex;
-const Semaphore = std.Semaphore;
-const CondVar = std.CondVar;
+const Impl = if (std.builtin.single_threaded)
+    SerialRwLockImpl
+else 
+    RwLockImpl;
 
-pub const Impl = if (builtin.single_threaded)
-    SingleThreadedRwLock
-else if (std.Thread.use_pthreads)
-    PthreadRwLock
-else
-    DefaultRwLock;
+impl: Impl = .{},
 
-pub fn init(rwl: *RwLock) void {
-    return rwl.impl.init();
+pub fn tryAcquire(self: *RwLock) ?Held {
+    if (!self.impl.tryAcquire()) return null;
+    return Held{ .impl = &self.impl };
 }
 
-pub fn deinit(rwl: *RwLock) void {
-    return rwl.impl.deinit();
+pub fn acquire(self: *RwLock) Held {
+    self.impl.acquire();
+    return Held{ .impl = &self.impl };
 }
 
-/// Attempts to obtain exclusive lock ownership.
-/// Returns `true` if the lock is obtained, `false` otherwise.
-pub fn tryLock(rwl: *RwLock) bool {
-    return rwl.impl.tryLock();
+pub fn timedAcquire(self: *RwLock, timeout_ns: u64) error{TimedOut}!Held {
+    try self.impl.timedAcquire(timeout_ns);
+    return Held{ .impl = &self.impl };
 }
 
-/// Blocks until exclusive lock ownership is acquired.
-pub fn lock(rwl: *RwLock) void {
-    return rwl.impl.lock();
+pub fn tryAcquireShared(self: *RwLock) ?Held {
+    if (!self.impl.tryAcquireShared()) return null;
+    return Held{ .impl = &self.impl };
 }
 
-/// Releases a held exclusive lock.
-/// Asserts the lock is held exclusively.
-pub fn unlock(rwl: *RwLock) void {
-    return rwl.impl.unlock();
+pub fn acquireShared(self: *RwLock) Held {
+    self.impl.acquireShared();
+    return Held{ .impl = &self.impl };
 }
 
-/// Attempts to obtain shared lock ownership.
-/// Returns `true` if the lock is obtained, `false` otherwise.
-pub fn tryLockShared(rwl: *RwLock) bool {
-    return rwl.impl.tryLockShared();
+pub fn timedAcquireShared(self: *RwLock, timeout_ns: u64) error{TimedOut}!Held {
+    try self.impl.timedAcquireShared(timeout_ns);
+    return Held{ .impl = &self.impl };
 }
 
-/// Blocks until shared lock ownership is acquired.
-pub fn lockShared(rwl: *RwLock) void {
-    return rwl.impl.lockShared();
-}
+pub const Held = struct {
+    impl: *Impl,
 
-/// Releases a held shared lock.
-pub fn unlockShared(rwl: *RwLock) void {
-    return rwl.impl.unlockShared();
-}
+    pub fn release(self: Held) void {
+        return self.impl.release();
+    }
+};
 
-/// Single-threaded applications use this for deadlock checks in
-/// debug mode, and no-ops in release modes.
-pub const SingleThreadedRwLock = struct {
-    state: enum { unlocked, locked_exclusive, locked_shared },
-    shared_count: usize,
+const SerialRwLockImpl = struct {
+    state: RwLockImpl.Count = 0,
 
-    pub fn init(rwl: *SingleThreadedRwLock) void {
-        rwl.* = .{
-            .state = .unlocked,
-            .shared_count = 0,
-        };
+    const IS_WRITING = std.math.maxInt(RwLockImpl.Count);
+
+    fn tryAcquire(self: *Impl) bool {
+        if (self.state != 0) return false;
+        self.state = IS_WRITING;
+        return true;    
     }
 
-    pub fn deinit(rwl: *SingleThreadedRwLock) void {
-        assert(rwl.state == .unlocked);
-        assert(rwl.shared_count == 0);
+    fn acquire(self: *Impl) void {
+        if (self.tryAcquire()) return;
+        @panic("deadlock detected");
     }
 
-    /// Attempts to obtain exclusive lock ownership.
-    /// Returns `true` if the lock is obtained, `false` otherwise.
-    pub fn tryLock(rwl: *SingleThreadedRwLock) bool {
-        switch (rwl.state) {
-            .unlocked => {
-                assert(rwl.shared_count == 0);
-                rwl.state = .locked_exclusive;
-                return true;
-            },
-            .locked_exclusive, .locked_shared => return false,
-        }
+    fn timedAcquire(self: *Impl, timeout_ns: u64) error{TimedOut}!void {
+        if (self.tryAcquire()) return;
+        std.time.sleep(timeout_ns);
+        return error.TimedOut;
     }
 
-    /// Blocks until exclusive lock ownership is acquired.
-    pub fn lock(rwl: *SingleThreadedRwLock) void {
-        assert(rwl.state == .unlocked); // deadlock detected
-        assert(rwl.shared_count == 0); // corrupted state detected
-        rwl.state = .locked_exclusive;
+    fn tryAcquireShared(self: *Impl) bool {
+        if (self.state == IS_WRITING) return false;
+        self.state += 1;
+        return true;
     }
 
-    /// Releases a held exclusive lock.
-    /// Asserts the lock is held exclusively.
-    pub fn unlock(rwl: *SingleThreadedRwLock) void {
-        assert(rwl.state == .locked_exclusive);
-        assert(rwl.shared_count == 0); // corrupted state detected
-        rwl.state = .unlocked;
+    fn acquireShared(self: *Impl) void {
+        if (self.tryAcquireShared()) return;
+        @panic("deadlock detected");
     }
 
-    /// Attempts to obtain shared lock ownership.
-    /// Returns `true` if the lock is obtained, `false` otherwise.
-    pub fn tryLockShared(rwl: *SingleThreadedRwLock) bool {
-        switch (rwl.state) {
-            .unlocked => {
-                rwl.state = .locked_shared;
-                assert(rwl.shared_count == 0);
-                rwl.shared_count = 1;
-                return true;
-            },
-            .locked_exclusive, .locked_shared => return false,
-        }
+    fn timedAcquireShared(self: *Impl, timeout_ns: u64) error{TimedOut}!void {
+        if (self.tryAcquireShared()) return;
+        std.time.sleep(timeout_ns);
+        return error.TimedOut;
     }
 
-    /// Blocks until shared lock ownership is acquired.
-    pub fn lockShared(rwl: *SingleThreadedRwLock) void {
-        switch (rwl.state) {
-            .unlocked => {
-                rwl.state = .locked_shared;
-                assert(rwl.shared_count == 0);
-                rwl.shared_count = 1;
-            },
-            .locked_shared => {
-                rwl.shared_count += 1;
-            },
-            .locked_exclusive => unreachable, // deadlock detected
-        }
-    }
-
-    /// Releases a held shared lock.
-    pub fn unlockShared(rwl: *SingleThreadedRwLock) void {
-        switch (rwl.state) {
-            .unlocked => unreachable, // too many calls to `unlockShared`
-            .locked_exclusive => unreachable, // exclusively held lock
-            .locked_shared => {
-                rwl.shared_count -= 1;
-                if (rwl.shared_count == 0) {
-                    rwl.state = .unlocked;
-                }
-            },
+    fn release(self: *Impl) void {
+        if (self.state == IS_WRITING) {
+            self.state = 0;
+        } else if (self.state > 0) {
+            self.state -= 1;
+        } else {
+            unreachable; // not acquired
         }
     }
 };
 
-pub const PthreadRwLock = struct {
-    rwlock: pthread_rwlock_t,
+const RwLockImpl = struct {
+    state: Atomic(usize) = Atomic(usize).init(0),
+    semaphore: std.Thread.Semaphore = .{},
+    mutex: std.Thread.Mutex = .{},
 
-    pub fn init(rwl: *PthreadRwLock) void {
-        rwl.* = .{ .rwlock = .{} };
-    }
-
-    pub fn deinit(rwl: *PthreadRwLock) void {
-        const safe_rc = switch (std.builtin.os.tag) {
-            .dragonfly, .netbsd => std.os.EAGAIN,
-            else => 0,
-        };
-
-        const rc = std.c.pthread_rwlock_destroy(&rwl.rwlock);
-        assert(rc == 0 or rc == safe_rc);
-
-        rwl.* = undefined;
-    }
-
-    pub fn tryLock(rwl: *PthreadRwLock) bool {
-        return pthread_rwlock_trywrlock(&rwl.rwlock) == 0;
-    }
-
-    pub fn lock(rwl: *PthreadRwLock) void {
-        const rc = pthread_rwlock_wrlock(&rwl.rwlock);
-        assert(rc == 0);
-    }
-
-    pub fn unlock(rwl: *PthreadRwLock) void {
-        const rc = pthread_rwlock_unlock(&rwl.rwlock);
-        assert(rc == 0);
-    }
-
-    pub fn tryLockShared(rwl: *PthreadRwLock) bool {
-        return pthread_rwlock_tryrdlock(&rwl.rwlock) == 0;
-    }
-
-    pub fn lockShared(rwl: *PthreadRwLock) void {
-        const rc = pthread_rwlock_rdlock(&rwl.rwlock);
-        assert(rc == 0);
-    }
-
-    pub fn unlockShared(rwl: *PthreadRwLock) void {
-        const rc = pthread_rwlock_unlock(&rwl.rwlock);
-        assert(rc == 0);
-    }
-};
-
-pub const DefaultRwLock = struct {
-    state: usize,
-    mutex: Mutex,
-    semaphore: Semaphore,
-
-    const IS_WRITING: usize = 1;
+    const Count = std.meta.Int(.unsigned, (std.meta.bitCount(usize) - 1) / 2);
+    const READER: usize = 1 << (std.meta.bitCount(Count) + 1);
     const WRITER: usize = 1 << 1;
-    const READER: usize = 1 << (1 + std.meta.bitCount(Count));
-    const WRITER_MASK: usize = std.math.maxInt(Count) << @ctz(usize, WRITER);
-    const READER_MASK: usize = std.math.maxInt(Count) << @ctz(usize, READER);
-    const Count = std.meta.Int(.unsigned, @divFloor(std.meta.bitCount(usize) - 1, 2));
+    const IS_WRITING: usize = 1;
 
-    pub fn init(rwl: *DefaultRwLock) void {
-        rwl.* = .{
-            .state = 0,
-            .mutex = Mutex.init(),
-            .semaphore = Semaphore.init(0),
-        };
+    const UNLOCKED: usize = 0;
+    const READER_MASK = @as(usize, std.math.maxInt(Count)) << @ctz(usize, READER);
+    const WRITER_MASK = @as(usize, std.math.maxInt(Count)) << @ctz(usize, WRITER);
+
+    fn tryAcquire(self: *Impl) bool {
+        // Writer locking must have the Mutex acquired to serialize access.
+        if (!self.mutex.tryAcquire()) {
+            return false;
+        }
+
+        // Bail if there's still pending readers since it would require 
+        // waiting for them to complete before acquiring exclusive access.
+        //
+        // No need for an Acquire barrier since:
+        // - previous writer changes are made visible by the mutex acquire above
+        // - readers don't make any changes this writer needs to have visibility to.
+        const state = self.state.load(.Monotonic);
+        if (state & READER_MASK != 0) {
+            self.mutex.release();
+            return false;
+        }
+
+        // Mark the RwLock as having exclusive access.
+        // No need to check result since other readers/writers
+        // would block/fail on the mutex since its currently locked.
+        _ = self.state.fetchOr(IS_WRITING, .Monotonic);
+        return true;
     }
 
-    pub fn deinit(rwl: *DefaultRwLock) void {
-        rwl.semaphore.deinit();
-        rwl.mutex.deinit();
-        rwl.* = undefined;
+    fn acquire(self: *Impl) void {
+        return self.acquireExclusiveAccess(null) catch unreachable;
     }
 
-    pub fn tryLock(rwl: *DefaultRwLock) bool {
-        if (rwl.mutex.tryLock()) {
-            const state = @atomicLoad(usize, &rwl.state, .SeqCst);
-            if (state & READER_MASK == 0) {
-                _ = @atomicRmw(usize, &rwl.state, .Or, IS_WRITING, .SeqCst);
+    fn timedAcquire(self: *Impl, timeout_ns: u64) error{TimedOut}!void {
+        return self.acquireExclusiveAccess(timeout_ns);
+    }
+
+    fn acquireExclusiveAccess(self: *Impl, maybe_timeout_ns: ?u64) error{TimedOut}!void {
+        // Mark the RwLock as having a pending writer...
+        _ = self.state.fetchAdd(WRITER, .Monotonic);
+
+        // ... then wait to get exclusive access (undoing the pending writer if it fails).
+        blk: {
+            const timeout_ns = maybe_timeout_ns orelse break :blk self.mutex.acquire();
+            self.mutex.timedAcquire(timeout_ns) catch {
+                _ = self.state.fetchSub(WRITER, .Monotonic);
+                return error.TimedOut;
+            };
+        }
+
+        // Mark the RwLock as having exclusive access while removing the pending writer set above.
+        const state = self.state.fetchAdd(IS_WRITING -% WRITER, .Monotonic);
+
+        // Wait for all reader threads to exit.
+        if (state & READER_MASK != 0) {
+            self.semaphore.wait();
+        }
+    }    
+
+    fn releaseExclusive(self: *Impl) void {
+        // Unset the writer bit with a Release barrier for non-mutex readers to see writes.
+        _ = self.state.fetchAnd(~IS_WRITING, .Release);
+        
+        // Unlock the mutex to release exclusive access to a pending reader or writer thread.
+        self.mutex.release();
+    }
+
+    fn tryAcquireShared(self: *Impl) bool {
+        var state = self.state.load(.Monotonic);
+        while (true) {
+            // Bail if there's currently a writer in progress.
+            // We would have to block on the mutex otherwise.
+            if (state & IS_WRITING != 0) {
+                return false;
+            }
+
+            // If there's a pending writer, it may not have gotten the mutex yet.
+            if (state & WRITER_MASK != 0) {
+                if (!self.mutex.tryAcquire()) {
+                    return false;
+                }
+                
+                // Mark the precense of a reader thread and release the mutex for other readers/writers.
+                // No acquire barrier needed since writes are made visible by the mutex acquire above.
+                _ = self.state.fetchAdd(READER, .Monotonic);
+                self.mutex.release();
                 return true;
             }
 
-            rwl.mutex.unlock();
-        }
-
-        return false;
-    }
-
-    pub fn lock(rwl: *DefaultRwLock) void {
-        _ = @atomicRmw(usize, &rwl.state, .Add, WRITER, .SeqCst);
-        rwl.mutex.lock();
-
-        const state = @atomicRmw(usize, &rwl.state, .Or, IS_WRITING, .SeqCst);
-        if (state & READER_MASK != 0)
-            rwl.semaphore.wait();
-    }
-
-    pub fn unlock(rwl: *DefaultRwLock) void {
-        _ = @atomicRmw(usize, &rwl.state, .And, ~IS_WRITING, .SeqCst);
-        rwl.mutex.unlock();
-    }
-
-    pub fn tryLockShared(rwl: *DefaultRwLock) bool {
-        const state = @atomicLoad(usize, &rwl.state, .SeqCst);
-        if (state & (IS_WRITING | WRITER_MASK) == 0) {
-            _ = @cmpxchgStrong(
-                usize,
-                &rwl.state,
+            // If there's no writers or pending writers, acquire by bumping the reader count.
+            // Acquire barrier to make visible any updates done by previous writer threads.
+            state = self.state.tryCompareAndSwap(
                 state,
                 state + READER,
-                .SeqCst,
-                .SeqCst,
+                .Acquire,
+                .Monotonic,
             ) orelse return true;
         }
-
-        if (rwl.mutex.tryLock()) {
-            _ = @atomicRmw(usize, &rwl.state, .Add, READER, .SeqCst);
-            rwl.mutex.unlock();
-            return true;
-        }
-
-        return false;
     }
 
-    pub fn lockShared(rwl: *DefaultRwLock) void {
-        var state = @atomicLoad(usize, &rwl.state, .SeqCst);
-        while (state & (IS_WRITING | WRITER_MASK) == 0) {
-            state = @cmpxchgWeak(
-                usize,
-                &rwl.state,
+    fn acquireShared(self: *Impl) void {
+        return self.acquireSharedAccess(null) catch unreachable;
+    }
+
+    fn timedAcquireShared(self: *Impl, timeout_ns: u64) error{TimedOut}!void {
+        return self.acquireSharedAccess(timeout_ns);
+    }
+
+    fn acquireSharedAccess(self: *Impl, maybe_timeout_ns: ?u64) error{TimedOut}!void {
+        // Try to acquire shared access to the RwLock by 
+        // bumping the READER count if there's no (pending) writers.
+        // Acquire barrier to make updates visible by previous writer threads. 
+        var state = self.state.load(.Monotonic);
+        while (true) {
+            if (state & (IS_WRITING | WRITER_MASK) != 0) {
+                break;
+            }
+
+            state = self.state.tryCompareAndSwap(
                 state,
                 state + READER,
-                .SeqCst,
-                .SeqCst,
+                .Acquire,
+                .Monotonic,
             ) orelse return;
         }
 
-        rwl.mutex.lock();
-        _ = @atomicRmw(usize, &rwl.state, .Add, READER, .SeqCst);
-        rwl.mutex.unlock();
+        // If there's (pending) writers, we need to block on the mutex before reading.
+        blk: {
+            const timeout_ns = maybe_timeout_ns orelse break :blk self.mutex.acquire();
+            try self.mutex.timedAcquire(timeout_ns);
+        }
+
+        // Writers are made visible by the mutex acquire so relaxed READER update is fine.
+        _ = self.state.fetchAdd(READER, .Monotonic);
+        self.mutex.release();
     }
 
-    pub fn unlockShared(rwl: *DefaultRwLock) void {
-        const state = @atomicRmw(usize, &rwl.state, .Sub, READER, .SeqCst);
+    fn releaseShared(self: *Impl) void {
+        // Remove a reader from the RwLock to release shared access.
+        // Release barrier to prevent the protected memory accesses from
+        // being reordered after the release of shared acceess.
+        const state = self.state.fetchSub(READER, .Release);
 
-        if ((state & READER_MASK == READER) and (state & IS_WRITING != 0))
-            rwl.semaphore.post();
+        // Notify a waiting writer thread if we're the last
+        // reader to exit while theres a writer waiting for exclusive ownership.
+        if ((state & READER_MASK == READER) and (state & IS_WRITING != 0)) {
+            self.semaphore.post();
+        }
+    }
+
+    fn release(self: *Impl) void {
+        const state = self.state.load(.Monotonic);
+        if (state & READER_MASK != 0) {
+            self.releaseShared();
+        } else {
+            self.releaseExclusive();
+        }
     }
 };
+
+test "RwLock" {
+    return error.TODO;
+}
