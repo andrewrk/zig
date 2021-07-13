@@ -157,6 +157,8 @@ pub fn main() !void {
                 builder.verbose_cc = true;
             } else if (mem.eql(u8, arg, "--verbose-llvm-cpu-features")) {
                 builder.verbose_llvm_cpu_features = true;
+            } else if (mem.eql(u8, arg, "--prominent-compile-errors")) {
+                builder.prominent_compile_errors = true;
             } else if (mem.eql(u8, arg, "--")) {
                 builder.args = argsRest(args, arg_idx);
                 break;
@@ -214,24 +216,25 @@ fn usage(builder: *Builder, already_ran_build: bool, out_stream: anytype) !void 
             try fmt.allocPrint(allocator, "{s} (default)", .{top_level_step.step.name})
         else
             top_level_step.step.name;
-        try out_stream.print("  {s:<27} {s}\n", .{ name, top_level_step.description });
+        try out_stream.print("  {s:<28} {s}\n", .{ name, top_level_step.description });
     }
 
     try out_stream.writeAll(
         \\
         \\General Options:
-        \\  -p, --prefix         [path] Override default install prefix
-        \\  --prefix-lib-dir     [path] Override default library directory path
-        \\  --prefix-exe-dir     [path] Override default executable directory path
-        \\  --prefix-include-dir [path] Override default include directory path
+        \\  -p, --prefix [path]          Override default install prefix
+        \\  --prefix-lib-dir [path]      Override default library directory path
+        \\  --prefix-exe-dir [path]      Override default executable directory path
+        \\  --prefix-include-dir [path]  Override default include directory path
         \\
-        \\  --sysroot [path]            Set the system root directory (usually /)
-        \\  --search-prefix [path]      Add a path to look for binaries, libraries, headers
-        \\  --libc [file]               Provide a file which specifies libc paths
+        \\  --sysroot [path]             Set the system root directory (usually /)
+        \\  --search-prefix [path]       Add a path to look for binaries, libraries, headers
+        \\  --libc [file]                Provide a file which specifies libc paths
         \\
-        \\  -h, --help                  Print this help and exit
-        \\  --verbose                   Print commands before executing them
-        \\  --color [auto|off|on]       Enable or disable colored error messages
+        \\  -h, --help                   Print this help and exit
+        \\  --verbose                    Print commands before executing them
+        \\  --color [auto|off|on]        Enable or disable colored error messages
+        \\  --prominent-compile-errors   Output compile errors formatted for a human to read
         \\
         \\Project-Specific Options:
         \\
@@ -246,24 +249,24 @@ fn usage(builder: *Builder, already_ran_build: bool, out_stream: anytype) !void 
                 @tagName(option.type_id),
             });
             defer allocator.free(name);
-            try out_stream.print("{s:<29} {s}\n", .{ name, option.description });
+            try out_stream.print("{s:<30} {s}\n", .{ name, option.description });
         }
     }
 
     try out_stream.writeAll(
         \\
         \\Advanced Options:
-        \\  --build-file [file]         Override path to build.zig
-        \\  --cache-dir [path]          Override path to zig cache directory
-        \\  --zig-lib-dir [arg]         Override path to Zig lib directory
-        \\  --verbose-tokenize          Enable compiler debug output for tokenization
-        \\  --verbose-ast               Enable compiler debug output for parsing into an AST
-        \\  --verbose-link              Enable compiler debug output for linking
-        \\  --verbose-ir                Enable compiler debug output for Zig IR
-        \\  --verbose-llvm-ir           Enable compiler debug output for LLVM IR
-        \\  --verbose-cimport           Enable compiler debug output for C imports
-        \\  --verbose-cc                Enable compiler debug output for C compilation
-        \\  --verbose-llvm-cpu-features Enable compiler debug output for LLVM CPU features
+        \\  --build-file [file]          Override path to build.zig
+        \\  --cache-dir [path]           Override path to zig cache directory
+        \\  --zig-lib-dir [arg]          Override path to Zig lib directory
+        \\  --verbose-tokenize           Enable compiler debug output for tokenization
+        \\  --verbose-ast                Enable compiler debug output for parsing into an AST
+        \\  --verbose-link               Enable compiler debug output for linking
+        \\  --verbose-ir                 Enable compiler debug output for Zig IR
+        \\  --verbose-llvm-ir            Enable compiler debug output for LLVM IR
+        \\  --verbose-cimport            Enable compiler debug output for C imports
+        \\  --verbose-cc                 Enable compiler debug output for C compilation
+        \\  --verbose-llvm-cpu-features  Enable compiler debug output for LLVM CPU features
         \\
     );
 }

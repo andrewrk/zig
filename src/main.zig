@@ -2722,6 +2722,8 @@ pub const usage_build =
 ;
 
 pub fn cmdBuild(gpa: *Allocator, arena: *Allocator, args: []const []const u8) !void {
+    var prominent_compile_errors: bool = false;
+
     // We want to release all the locks before executing the child process, so we make a nice
     // big block here to ensure the cleanup gets run when we extract out our argv.
     const child_argv = argv: {
@@ -2773,6 +2775,8 @@ pub fn cmdBuild(gpa: *Allocator, arena: *Allocator, args: []const []const u8) !v
                         i += 1;
                         override_global_cache_dir = args[i];
                         continue;
+                    } else if (mem.eql(u8, arg, "--prominent-compile-errors")) {
+                        prominent_compile_errors = true;
                     }
                 }
                 try child_argv.append(arg);
@@ -2942,8 +2946,13 @@ pub fn cmdBuild(gpa: *Allocator, arena: *Allocator, args: []const []const u8) !v
     switch (term) {
         .Exited => |code| {
             if (code == 0) return cleanExit();
-            const cmd = try argvCmd(arena, child_argv);
-            fatal("the following build command failed with exit code {d}:\n{s}", .{ code, cmd });
+
+            if (prominent_compile_errors) {
+                fatal("the build command failed with exit code {d}", .{code});
+            } else {
+                const cmd = try argvCmd(arena, child_argv);
+                fatal("the following build command failed with exit code {d}:\n{s}", .{ code, cmd });
+            }
         },
         else => {
             const cmd = try argvCmd(arena, child_argv);
