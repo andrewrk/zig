@@ -72,6 +72,11 @@ fn tlsCsprngFill(_: *const std.rand.Random, buffer: []u8) void {
         return fillWithOsEntropy(buffer);
     }
 
+    // Use OS syscall for haiku
+    if (std.Target.current.os.tag == .haiku) {
+        return fillWithOsEntropy(buffer);
+    }
+
     if (wipe_mem.len == 0) {
         // Not initialized yet.
         if (want_fork_safety and maybe_have_wipe_on_fork) {

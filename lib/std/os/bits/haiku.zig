@@ -179,15 +179,29 @@ pub const dirent = extern struct {
     }
 };
 
+pub const area_info = extern struct {
+    area: u32,
+    name: [32]u8,
+    size: usize,
+    lock: u32,
+    protection: u32,
+    team_id: i32,
+    ram_size: u32,
+    copy_count: u32,
+    in_count: u32,
+    out_count: u32,
+    address: *c_void,
+};
+
 pub const image_info = extern struct {
     id: u32,
-    type: u32,
+    image_type: u32,
     sequence: i32,
     init_order: i32,
     init_routine: *c_void,
     term_routine: *c_void,
     device: i32,
-    node: i32,
+    node: i64,
     name: [1024]u8,
     text: *c_void,
     data: *c_void,
@@ -223,6 +237,19 @@ pub const system_info = extern struct {
     kernel_build_time: [32]u8,
     kernel_version: i64,
     abi: u32,
+};
+
+pub const team_info = extern struct {
+    team_id: i32,
+    thread_count: i32,
+    image_count: i32,
+    area_count: i32,
+    debugger_nub_thread: i32,
+    debugger_nub_port: i32,
+    argc: i32,
+    args: [64]u8,
+    uid: uid_t,
+    gid: gid_t,
 };
 
 pub const in_port_t = u16;
@@ -289,10 +316,10 @@ pub const CLOCK_THREAD_CPUTIME_ID = -3;
 pub const MAP_FAILED = @intToPtr(*c_void, maxInt(usize));
 pub const MAP_SHARED = 0x0001;
 pub const MAP_PRIVATE = 0x0002;
-pub const MAP_FIXED = 0x0010;
+pub const MAP_FIXED = 0x0004;
 pub const MAP_STACK = 0x0400;
 pub const MAP_NOSYNC = 0x0800;
-pub const MAP_ANON = 0x1000;
+pub const MAP_ANON = 0x0008;
 pub const MAP_ANONYMOUS = MAP_ANON;
 pub const MAP_FILE = 0;
 
@@ -369,9 +396,6 @@ pub const O_WRONLY = 0x0001;
 pub const O_RDWR = 0x0002;
 pub const O_ACCMODE = 0x0003;
 
-pub const O_SHLOCK = 0x0010;
-pub const O_EXLOCK = 0x0020;
-
 pub const O_CREAT = 0x0200;
 pub const O_EXCL = 0x0800;
 pub const O_NOCTTY = 0x8000;
@@ -383,7 +407,7 @@ pub const O_SYNC = 0x0080;
 pub const O_RSYNC = 0o4010000;
 pub const O_DIRECTORY = 0x20000;
 pub const O_NOFOLLOW = 0x0100;
-pub const O_CLOEXEC = 0x00100000;
+pub const O_CLOEXEC = 0x00000040;
 
 pub const O_ASYNC = 0x0040;
 pub const O_DIRECT = 0x00010000;

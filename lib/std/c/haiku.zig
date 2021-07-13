@@ -20,8 +20,12 @@ pub extern "c" fn find_thread(thread_name: ?*c_void) i32;
 
 pub extern "c" fn get_system_info(system_info: *system_info) usize;
 
+pub extern "c" fn _get_team_info(team: c_int, team_info: *team_info, size: usize) i32;
+
+pub extern "c" fn _get_next_area_info(team: c_int, cookie: *i64, area_info: *area_info, size: usize) i32;
+
 // TODO revisit if abi changes or better option becomes apparent
-pub extern "c" fn _get_next_image_info(team: c_int, cookie: *i32, image_info: *image_info) usize;
+pub extern "c" fn _get_next_image_info(team: c_int, cookie: *i32, image_info: *image_info, size: usize) i32;
 
 pub extern "c" fn _kern_read_dir(fd: c_int, buf_ptr: [*]u8, nbytes: usize, maxcount: u32) usize;
 
