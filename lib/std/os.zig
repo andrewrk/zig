@@ -788,7 +788,7 @@ pub fn write(fd: fd_t, bytes: []const u8) WriteError!usize {
 /// On Windows, if the application has a global event loop enabled, I/O Completion Ports are
 /// used to perform the I/O. `error.WouldBlock` is not possible on Windows.
 ///
-/// If `iov.len` is larger than will fit in a `u31`, a partial write will occur.
+/// If `iov.len` is larger than `IOV_MAX`, a partial write will occur.
 pub fn writev(fd: fd_t, iov: []const iovec_const) WriteError!usize {
     if (std.Target.current.os.tag == .windows) {
         // TODO improve this to use WriteFileScatter
@@ -817,7 +817,7 @@ pub fn writev(fd: fd_t, iov: []const iovec_const) WriteError!usize {
         }
     }
 
-    const iov_count = math.cast(u31, iov.len) catch math.maxInt(u31);
+    const iov_count = if (iov.len > IOV_MAX) IOV_MAX else @intCast(u31, iov.len);
     while (true) {
         const rc = system.writev(fd, iov.ptr, iov_count);
         switch (errno(rc)) {
@@ -955,7 +955,7 @@ pub fn pwrite(fd: fd_t, bytes: []const u8, offset: u64) PWriteError!usize {
 /// * Darwin
 /// * Windows
 ///
-/// If `iov.len` is larger than will fit in a `u31`, a partial write will occur.
+/// If `iov.len` is larger than `IOV_MAX`, a partial write will occur.
 pub fn pwritev(fd: fd_t, iov: []const iovec_const, offset: u64) PWriteError!usize {
     const have_pwrite_but_not_pwritev = switch (std.Target.current.os.tag) {
         .windows, .macos, .ios, .watchos, .tvos, .haiku => true,
@@ -998,7 +998,7 @@ pub fn pwritev(fd: fd_t, iov: []const iovec_const, offset: u64) PWriteError!usiz
     else
         system.pwritev;
 
-    const iov_count = math.cast(u31, iov.len) catch math.maxInt(u31);
+    const iov_count = if (iov.len > IOV_MAX) IOV_MAX else @intCast(u31, iov.len);
     const ioffset = @bitCast(i64, offset); // the OS treats this as unsigned
     while (true) {
         const rc = pwritev_sym(fd, iov.ptr, iov_count, ioffset);
