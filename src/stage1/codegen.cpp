@@ -428,8 +428,18 @@ static LLVMValueRef make_fn_llvm_value(CodeGen *g, ZigFn *fn) {
         // compiler as we're telling LLVM (using 'wasm-import-name' and
         // 'wasm-import-name') what the real function name is and where to find
         // it.
-        const bool use_mangled_name = target_is_wasm(g->zig_target) &&
+        bool use_mangled_name = target_is_wasm(g->zig_target) &&
                 fn_proto->is_extern && fn_proto->lib_name != nullptr;
+        // This is subtle but important to match libc symbols at static link time correctly.
+        // We treat "c" lib_name as a special library indicating that it should be defined
+        // in libc. But if we mangle a libc symbol name here with "c" module name, then wasm-ld cannot resolve
+        // the symbol. This is because at the static link time with wasm-ld, the linker does not
+        // take module names into account, and instead looking for a pure symbol name (i.e. function name)
+        // written into the ".linking" custom section (i.e. it does not use import section).
+        // This is the intended behavior of wasm-ld, because Wasm has a concept of host functions,
+        // which are undefined functions supposed to be resolved by host runtimes *with module names*
+        // at load times even if it is "static linked" with the linker.
+        use_mangled_name = use_mangled_name && (strcmp(buf_ptr(fn_proto->lib_name), "c") != 0);
         // Pick a weird name to avoid collisions...
         // This whole function should be burned to the ground.
         Buf *mangled_symbol_buf = use_mangled_name ?
@@ -452,6 +462,13 @@ static LLVMValueRef make_fn_llvm_value(CodeGen *g, ZigFn *fn) {
                 llvm_fn = LLVMAddFunction(g->module, symbol_name, fn_llvm_type);
 
                 if (use_mangled_name) {
+                    // Note that "wasm-import-module"ed symbols will not be resolved
+                    // in the future version of wasm-ld since the attribute basically means that
+                    // "the symbol should be resolved at load time by runtimes", though
+                    // the symbol is already mangled here and it is written into "linking" section
+                    // used by wasm-ld to match symbols, so it should not be expected by users.
+                    // tl;dr is that users should not put the lib_name specifier on extern statements
+                    // if they want to link symbols with wasm-ld.
                     addLLVMFnAttrStr(llvm_fn, "wasm-import-name", unmangled_name);
                     addLLVMFnAttrStr(llvm_fn, "wasm-import-module", buf_ptr(fn_proto->lib_name));
                 }
