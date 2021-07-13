@@ -2555,6 +2555,12 @@ pub const LibExeObjStep = struct {
                 if (cross.cpu.model != std.Target.Cpu.baseline(cross.cpu.arch).model) {
                     try zig_args.append("-mcpu");
                     try zig_args.append(cross.cpu.model.name);
+                } else {
+                    // baseline must be passed for a compilation for binray compatible
+                    // ie: the compiling plateform may have more CPU features than target
+                    // use then baseline
+                    try zig_args.append("-mcpu");
+                    try zig_args.append("baseline");
                 }
             } else {
                 var mcpu_buffer = std.ArrayList(u8).init(builder.allocator);
