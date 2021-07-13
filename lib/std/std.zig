@@ -8,6 +8,7 @@ pub const ArrayHashMapUnmanaged = array_hash_map.ArrayHashMapUnmanaged;
 pub const ArrayList = @import("array_list.zig").ArrayList;
 pub const ArrayListAligned = @import("array_list.zig").ArrayListAligned;
 pub const ArrayListAlignedUnmanaged = @import("array_list.zig").ArrayListAlignedUnmanaged;
+pub const ArrayListFixed = @import("array_list_fixed.zig").ArrayListFixed;
 pub const ArrayListUnmanaged = @import("array_list.zig").ArrayListUnmanaged;
 pub const AutoArrayHashMap = array_hash_map.AutoArrayHashMap;
 pub const AutoArrayHashMapUnmanaged = array_hash_map.AutoArrayHashMapUnmanaged;
