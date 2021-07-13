@@ -6634,12 +6634,19 @@ test "global assembly" {
       <p>
       When a function is called, a frame is pushed to the stack,
       the function runs until it reaches a return statement, and then the frame is popped from the stack.
-      At the callsite, the following code does not run until the function returns.
+      The code following the callsite does not run until the function returns.
       </p>
       <p>
-      An async function is a function whose callsite is split into an {#syntax#}async{#endsyntax#} initiation,
+      An async function is a function whose execution is split into an {#syntax#}async{#endsyntax#} initiation,
       followed by an {#syntax#}await{#endsyntax#} completion. Its frame is
       provided explicitly by the caller, and it can be suspended and resumed any number of times.
+      </p>
+      <p>
+      The code following the {#syntax#}async{#endsyntax#} callsite runs immediately after the async 
+      function first suspends. When the return value of the async function is needed, 
+      the calling code can {#syntax#}await{#endsyntax#} on the async function frame. 
+      This will suspend the calling code until the async function completes, at which point 
+      execution resumes just after the {#syntax#}await{#endsyntax#} callsite.
       </p>
       <p>
       Zig infers that a function is {#syntax#}async{#endsyntax#} when it observes that the function contains
@@ -6744,7 +6751,14 @@ fn testResumeFromSuspend(my_result: *i32) void {
       {#header_open|Async and Await#}
       <p>
       In the same way that every {#syntax#}suspend{#endsyntax#} has a matching
-      {#syntax#}resume{#endsyntax#}, every {#syntax#}async{#endsyntax#} has a matching {#syntax#}await{#endsyntax#}.
+      {#syntax#}resume{#endsyntax#}, every {#syntax#}async{#endsyntax#} has a matching {#syntax#}await{#endsyntax#}
+      in standard code.
+      </p>
+      <p>
+      However, it is possible to have an {#syntax#}async{#endsyntax#} call 
+      without a matching {#syntax#}await{#endsyntax#}. Upon completion of the async function, 
+      execution would continue at the most recent {#syntax#}async{#endsyntax#} callsite or {#syntax#}resume{#endsyntax#} callsite,
+      and the return value of the async function would be lost.
       </p>
       {#code_begin|test#}
 const std = @import("std");
@@ -6779,7 +6793,9 @@ fn func() void {
       </p>
       <p>
       {#syntax#}await{#endsyntax#} is a suspend point, and takes as an operand anything that
-      coerces to {#syntax#}anyframe->T{#endsyntax#}.
+      coerces to {#syntax#}anyframe->T{#endsyntax#}. Calling {#syntax#}await{#endsyntax#} on 
+      the frame of an async function will cause execution to continue at the 
+      {#syntax#}await{#endsyntax#} callsite once the target function completes.
       </p>
       <p>
       There is a common misconception that {#syntax#}await{#endsyntax#} resumes the target function.
