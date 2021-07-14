@@ -1,6 +1,7 @@
 const MachO = @This();
 
 const std = @import("std");
+const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const fmt = std.fmt;
@@ -22,6 +23,8 @@ const link = @import("../link.zig");
 const File = link.File;
 const Cache = @import("../Cache.zig");
 const target_util = @import("../target.zig");
+const Air = @import("../Air.zig");
+const Liveness = @import("../Liveness.zig");
 
 const DebugSymbols = @import("MachO/DebugSymbols.zig");
 const Trie = @import("MachO/Trie.zig");
@@ -1132,7 +1135,55 @@ pub fn allocateDeclIndexes(self: *MachO, decl: *Module.Decl) !void {
     };
 }
 
+pub fn updateFunc(self: *MachO, module: *Module, func: *Module.Fn, air: Air, liveness: Liveness) !void {
+    if (build_options.skip_non_native and builtin.object_format != .macho) {
+        @panic("Attempted to compile for object format that was disabled by build configuration");
+    }
+    if (build_options.have_llvm) {
+        if (self.llvm_object) |llvm_object| return llvm_object.updateFunc(module, func, air, liveness);
+    }
+    const tracy = trace(@src());
+    defer tracy.end();
+
+    const decl = func.owner_decl;
+
+    var code_buffer = std.ArrayList(u8).init(self.base.allocator);
+    defer code_buffer.deinit();
+
+    var debug_buffers = if (self.d_sym) |*ds| try ds.initDeclDebugBuffers(self.base.allocator, module, decl) else null;
+    defer {
+        if (debug_buffers) |*dbg| {
+            dbg.dbg_line_buffer.deinit();
+            dbg.dbg_info_buffer.deinit();
+            var it = dbg.dbg_info_type_relocs.valueIterator();
+            while (it.next()) |value| {
+                value.relocs.deinit(self.base.allocator);
+            }
+            dbg.dbg_info_type_relocs.deinit(self.base.allocator);
+        }
+    }
+
+    const res = if (debug_buffers) |*dbg|
+        try codegen.generateFunction(&self.base, decl.srcLoc(), func, air, liveness, &code_buffer, .{
+            .dwarf = .{
+                .dbg_line = &dbg.dbg_line_buffer,
+                .dbg_info = &dbg.dbg_info_buffer,
+                .dbg_info_type_relocs = &dbg.dbg_info_type_relocs,
+            },
+        })
+    else
+        try codegen.generateSymbol(&self.base, decl.srcLoc(), func, air, liveness, &code_buffer, .none);
+
+    return self.finishUpdateDecl(module, decl, res);
+}
+
 pub fn updateDecl(self: *MachO, module: *Module, decl: *Module.Decl) !void {
+    if (build_options.skip_non_native and builtin.object_format != .macho) {
+        @panic("Attempted to compile for object format that was disabled by build configuration");
+    }
+    if (build_options.have_llvm) {
+        if (self.llvm_object) |llvm_object| return llvm_object.updateDecl(module, decl);
+    }
     const tracy = trace(@src());
     defer tracy.end();
 
@@ -1173,6 +1224,10 @@ pub fn updateDecl(self: *MachO, module: *Module, decl: *Module.Decl) !void {
             .val = decl.val,
         }, &code_buffer, .none);
 
+    return self.finishUpdateDecl(module, decl, res);
+}
+
+fn finishUpdateDecl(self: *MachO, module: *Module, decl: *Module.Decl, res: codegen.Result) !void {
     const code = switch (res) {
         .externally_managed => |x| x,
         .appended => code_buffer.items,

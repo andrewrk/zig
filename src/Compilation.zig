@@ -13,7 +13,7 @@ const target_util = @import("target.zig");
 const Package = @import("Package.zig");
 const link = @import("link.zig");
 const trace = @import("tracy.zig").trace;
-const liveness = @import("liveness.zig");
+const Liveness = @import("Liveness.zig");
 const build_options = @import("build_options");
 const LibCInstallation = @import("libc_installation.zig").LibCInstallation;
 const glibc = @import("glibc.zig");
@@ -1922,6 +1922,7 @@ pub fn getCompileLogOutput(self: *Compilation) []const u8 {
 }
 
 pub fn performAllTheWork(self: *Compilation) error{ TimerUnsupported, OutOfMemory }!void {
+    const gpa = self.gpa;
     // If the terminal is dumb, we dont want to show the user all the
     // output.
     var progress: std.Progress = .{ .dont_print_on_dumb = true };
@@ -2005,7 +2006,8 @@ pub fn performAllTheWork(self: *Compilation) error{ TimerUnsupported, OutOfMemor
                 assert(decl.has_tv);
                 if (decl.val.castTag(.function)) |payload| {
                     const func = payload.data;
-                    switch (func.state) {
+
+                    var air = switch (func.state) {
                         .queued => module.analyzeFnBody(decl, func) catch |err| switch (err) {
                             error.AnalysisFail => {
                                 assert(func.state != .in_progress);
@@ -2016,18 +2018,39 @@ pub fn performAllTheWork(self: *Compilation) error{ TimerUnsupported, OutOfMemor
                         .in_progress => unreachable,
                         .inline_only => unreachable, // don't queue work for this
                         .sema_failure, .dependency_failure => continue,
-                        .success => {},
-                    }
-                    // Here we tack on additional allocations to the Decl's arena. The allocations
-                    // are lifetime annotations in the ZIR.
-                    var decl_arena = decl.value_arena.?.promote(module.gpa);
-                    defer decl.value_arena.?.* = decl_arena.state;
+                        .success => unreachable, // don't queue it twice
+                    };
+                    defer air.deinit(gpa);
+
                     log.debug("analyze liveness of {s}", .{decl.name});
-                    try liveness.analyze(module.gpa, &decl_arena.allocator, func.body);
+                    var liveness = try Liveness.analyze(gpa, air, decl.namespace.file_scope.zir);
+                    defer liveness.deinit(gpa);
 
                     if (std.builtin.mode == .Debug and self.verbose_air) {
-                        func.dump(module.*);
+                        @panic("TODO implement dumping AIR and liveness");
                     }
+
+                    assert(decl.ty.hasCodeGenBits());
+
+                    self.bin_file.updateFunc(module, func, air, liveness) catch |err| switch (err) {
+                        error.OutOfMemory => return error.OutOfMemory,
+                        error.AnalysisFail => {
+                            decl.analysis = .codegen_failure;
+                            continue;
+                        },
+                        else => {
+                            try module.failed_decls.ensureUnusedCapacity(gpa, 1);
+                            module.failed_decls.putAssumeCapacityNoClobber(decl, try Module.ErrorMsg.create(
+                                gpa,
+                                decl.srcLoc(),
+                                "unable to codegen: {s}",
+                                .{@errorName(err)},
+                            ));
+                            decl.analysis = .codegen_failure_retryable;
+                            continue;
+                        },
+                    };
+                    continue;
                 }
 
                 assert(decl.ty.hasCodeGenBits());
@@ -2039,9 +2062,9 @@ pub fn performAllTheWork(self: *Compilation) error{ TimerUnsupported, OutOfMemor
                         continue;
                     },
                     else => {
-                        try module.failed_decls.ensureCapacity(module.gpa, module.failed_decls.count() + 1);
+                        try module.failed_decls.ensureCapacity(gpa, module.failed_decls.count() + 1);
                         module.failed_decls.putAssumeCapacityNoClobber(decl, try Module.ErrorMsg.create(
-                            module.gpa,
+                            gpa,
                             decl.srcLoc(),
                             "unable to codegen: {s}",
                             .{@errorName(err)},
@@ -2070,7 +2093,7 @@ pub fn performAllTheWork(self: *Compilation) error{ TimerUnsupported, OutOfMemor
                     @panic("sadly stage2 is omitted from this build to save memory on the CI server");
                 const module = self.bin_file.options.module.?;
                 const emit_h = module.emit_h.?;
-                _ = try emit_h.decl_table.getOrPut(module.gpa, decl);
+                _ = try emit_h.decl_table.getOrPut(gpa, decl);
                 const decl_emit_h = decl.getEmitH(module);
                 const fwd_decl = &decl_emit_h.fwd_decl;
                 fwd_decl.shrinkRetainingCapacity(0);
@@ -2079,7 +2102,7 @@ pub fn performAllTheWork(self: *Compilation) error{ TimerUnsupported, OutOfMemor
                     .module = module,
                     .error_msg = null,
                     .decl = decl,
-                    .fwd_decl = fwd_decl.toManaged(module.gpa),
+                    .fwd_decl = fwd_decl.toManaged(gpa),
                     // we don't want to emit optionals and error unions to headers since they have no ABI
                     .typedefs = undefined,
                 };
@@ -2087,14 +2110,14 @@ pub fn performAllTheWork(self: *Compilation) error{ TimerUnsupported, OutOfMemor
 
                 c_codegen.genHeader(&dg) catch |err| switch (err) {
                     error.AnalysisFail => {
-                        try emit_h.failed_decls.put(module.gpa, decl, dg.error_msg.?);
+                        try emit_h.failed_decls.put(gpa, decl, dg.error_msg.?);
                         continue;
                     },
                     else => |e| return e,
                 };
 
                 fwd_decl.* = dg.fwd_decl.moveToUnmanaged();
-                fwd_decl.shrinkAndFree(module.gpa, fwd_decl.items.len);
+                fwd_decl.shrinkAndFree(gpa, fwd_decl.items.len);
             },
         },
         .analyze_decl => |decl| {
@@ -2111,9 +2134,9 @@ pub fn performAllTheWork(self: *Compilation) error{ TimerUnsupported, OutOfMemor
                 @panic("sadly stage2 is omitted from this build to save memory on the CI server");
             const module = self.bin_file.options.module.?;
             self.bin_file.updateDeclLineNumber(module, decl) catch |err| {
-                try module.failed_decls.ensureCapacity(module.gpa, module.failed_decls.count() + 1);
+                try module.failed_decls.ensureCapacity(gpa, module.failed_decls.count() + 1);
                 module.failed_decls.putAssumeCapacityNoClobber(decl, try Module.ErrorMsg.create(
-                    module.gpa,
+                    gpa,
                     decl.srcLoc(),
                     "unable to update line number: {s}",
                     .{@errorName(err)},

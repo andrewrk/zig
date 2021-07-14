@@ -22,7 +22,6 @@ const Zir = @This();
 const Type = @import("type.zig").Type;
 const Value = @import("value.zig").Value;
 const TypedValue = @import("TypedValue.zig");
-const ir = @import("air.zig");
 const Module = @import("Module.zig");
 const LazySrcLoc = Module.LazySrcLoc;
 
@@ -208,7 +207,7 @@ pub const Inst = struct {
         as_node,
         /// Bitwise AND. `&`
         bit_and,
-        /// Bitcast a value to a different type.
+        /// Reinterpret the memory representation of a value as a different type.
         /// Uses the pl_node field with payload `Bin`.
         bitcast,
         /// A typed result location pointer is bitcasted to a new result location pointer.

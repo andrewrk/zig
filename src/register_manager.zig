@@ -3,7 +3,7 @@ const math = std.math;
 const mem = std.mem;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
-const ir = @import("air.zig");
+const Air = @import("Air.zig");
 const Type = @import("type.zig").Type;
 const Module = @import("Module.zig");
 const LazySrcLoc = Module.LazySrcLoc;
@@ -20,7 +20,7 @@ pub fn RegisterManager(
 ) type {
     return struct {
         /// The key must be canonical register.
-        registers: [callee_preserved_regs.len]?*ir.Inst = [_]?*ir.Inst{null} ** callee_preserved_regs.len,
+        registers: [callee_preserved_regs.len]?Air.Inst.Index = [_]?Air.Inst.Index{null} ** callee_preserved_regs.len,
         free_registers: FreeRegInt = math.maxInt(FreeRegInt),
         /// Tracks all registers allocated in the course of this function
         allocated_registers: FreeRegInt = 0,
@@ -75,7 +75,7 @@ pub fn RegisterManager(
         pub fn tryAllocRegs(
             self: *Self,
             comptime count: comptime_int,
-            insts: [count]?*ir.Inst,
+            insts: [count]?Air.Inst.Index,
             exceptions: []const Register,
         ) ?[count]Register {
             comptime if (callee_preserved_regs.len == 0) return null;
@@ -113,7 +113,7 @@ pub fn RegisterManager(
         /// Allocates a register and optionally tracks it with a
         /// corresponding instruction. Returns `null` if all registers
         /// are allocated.
-        pub fn tryAllocReg(self: *Self, inst: ?*ir.Inst, exceptions: []const Register) ?Register {
+        pub fn tryAllocReg(self: *Self, inst: ?Air.Inst.Index, exceptions: []const Register) ?Register {
             return if (tryAllocRegs(self, 1, .{inst}, exceptions)) |regs| regs[0] else null;
         }
 
@@ -123,7 +123,7 @@ pub fn RegisterManager(
         pub fn allocRegs(
             self: *Self,
             comptime count: comptime_int,
-            insts: [count]?*ir.Inst,
+            insts: [count]?Air.Inst.Index,
             exceptions: []const Register,
         ) ![count]Register {
             comptime assert(count > 0 and count <= callee_preserved_regs.len);
@@ -147,14 +147,14 @@ pub fn RegisterManager(
                             self.markRegUsed(reg);
                         } else {
                             const spilled_inst = self.registers[index].?;
-                            try self.getFunction().spillInstruction(spilled_inst.src, reg, spilled_inst);
+                            try self.getFunction().spillInstruction(reg, spilled_inst);
                         }
                         self.registers[index] = inst;
                     } else {
                         // Don't track the register
                         if (!self.isRegFree(reg)) {
                             const spilled_inst = self.registers[index].?;
-                            try self.getFunction().spillInstruction(spilled_inst.src, reg, spilled_inst);
+                            try self.getFunction().spillInstruction(reg, spilled_inst);
                             self.freeReg(reg);
                         }
                     }
@@ -168,14 +168,14 @@ pub fn RegisterManager(
 
         /// Allocates a register and optionally tracks it with a
         /// corresponding instruction.
-        pub fn allocReg(self: *Self, inst: ?*ir.Inst, exceptions: []const Register) !Register {
+        pub fn allocReg(self: *Self, inst: ?Air.Inst.Index, exceptions: []const Register) !Register {
             return (try self.allocRegs(1, .{inst}, exceptions))[0];
         }
 
         /// Spills the register if it is currently allocated. If a
         /// corresponding instruction is passed, will also track this
         /// register.
-        pub fn getReg(self: *Self, reg: Register, inst: ?*ir.Inst) !void {
+        pub fn getReg(self: *Self, reg: Register, inst: ?Air.Inst.Index) !void {
             const index = reg.allocIndex() orelse return;
 
             if (inst) |tracked_inst|
@@ -184,7 +184,7 @@ pub fn RegisterManager(
                     // stack allocation.
                     const spilled_inst = self.registers[index].?;
                     self.registers[index] = tracked_inst;
-                    try self.getFunction().spillInstruction(spilled_inst.src, reg, spilled_inst);
+                    try self.getFunction().spillInstruction(reg, spilled_inst);
                 } else {
                     self.getRegAssumeFree(reg, tracked_inst);
                 }
@@ -193,7 +193,7 @@ pub fn RegisterManager(
                     // Move the instruction that was previously there to a
                     // stack allocation.
                     const spilled_inst = self.registers[index].?;
-                    try self.getFunction().spillInstruction(spilled_inst.src, reg, spilled_inst);
+                    try self.getFunction().spillInstruction(reg, spilled_inst);
                     self.freeReg(reg);
                 }
             }
@@ -202,7 +202,7 @@ pub fn RegisterManager(
         /// Allocates the specified register with the specified
         /// instruction. Asserts that the register is free and no
         /// spilling is necessary.
-        pub fn getRegAssumeFree(self: *Self, reg: Register, inst: *ir.Inst) void {
+        pub fn getRegAssumeFree(self: *Self, reg: Register, inst: Air.Inst.Index) void {
             const index = reg.allocIndex() orelse return;
 
             assert(self.registers[index] == null);
@@ -264,8 +264,7 @@ fn MockFunction(comptime Register: type) type {
             self.spilled.deinit(self.allocator);
         }
 
-        pub fn spillInstruction(self: *Self, src: LazySrcLoc, reg: Register, inst: *ir.Inst) !void {
-            _ = src;
+        pub fn spillInstruction(self: *Self, reg: Register, inst: Air.Inst.Index) !void {
             _ = inst;
             try self.spilled.append(self.allocator, reg);
         }

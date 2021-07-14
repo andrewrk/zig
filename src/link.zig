@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 const fs = std.fs;
@@ -14,8 +15,10 @@ const Cache = @import("Cache.zig");
 const build_options = @import("build_options");
 const LibCInstallation = @import("libc_installation.zig").LibCInstallation;
 const wasi_libc = @import("wasi_libc.zig");
+const Air = @import("Air.zig");
+const Liveness = @import("Liveness.zig");
 
-pub const producer_string = if (std.builtin.is_test) "zig test" else "zig " ++ build_options.version;
+pub const producer_string = if (builtin.is_test) "zig test" else "zig " ++ build_options.version;
 
 pub const Emit = struct {
     /// Where the output will go.
@@ -313,13 +316,34 @@ pub const File = struct {
         log.debug("updateDecl {*} ({s}), type={}", .{ decl, decl.name, decl.ty });
         assert(decl.has_tv);
         switch (base.tag) {
-            .coff => return @fieldParentPtr(Coff, "base", base).updateDecl(module, decl),
-            .elf => return @fieldParentPtr(Elf, "base", base).updateDecl(module, decl),
+            // zig fmt: off
+            .coff  => return @fieldParentPtr(Coff,  "base", base).updateDecl(module, decl),
+            .elf   => return @fieldParentPtr(Elf,   "base", base).updateDecl(module, decl),
             .macho => return @fieldParentPtr(MachO, "base", base).updateDecl(module, decl),
-            .c => return @fieldParentPtr(C, "base", base).updateDecl(module, decl),
-            .wasm => return @fieldParentPtr(Wasm, "base", base).updateDecl(module, decl),
+            .c     => return @fieldParentPtr(C,     "base", base).updateDecl(module, decl),
+            .wasm  => return @fieldParentPtr(Wasm,  "base", base).updateDecl(module, decl),
             .spirv => return @fieldParentPtr(SpirV, "base", base).updateDecl(module, decl),
             .plan9 => return @fieldParentPtr(Plan9, "base", base).updateDecl(module, decl),
+            // zig fmt: on
+        }
+    }
+
+    /// May be called before or after updateDeclExports but must be called
+    /// after allocateDeclIndexes for any given Decl.
+    pub fn updateFunc(base: *File, module: *Module, func: *Module.Fn, air: Air, liveness: Liveness) !void {
+        log.debug("updateFunc {*} ({s}), type={}", .{
+            func.owner_decl, func.owner_decl.name, func.owner_decl.ty,
+        });
+        switch (base.tag) {
+            // zig fmt: off
+            .coff  => return @fieldParentPtr(Coff,  "base", base).updateFunc(module, func, air, liveness),
+            .elf   => return @fieldParentPtr(Elf,   "base", base).updateFunc(module, func, air, liveness),
+            .macho => return @fieldParentPtr(MachO, "base", base).updateFunc(module, func, air, liveness),
+            .c     => return @fieldParentPtr(C,     "base", base).updateFunc(module, func, air, liveness),
+            .wasm  => return @fieldParentPtr(Wasm,  "base", base).updateFunc(module, func, air, liveness),
+            .spirv => return @fieldParentPtr(SpirV, "base", base).updateFunc(module, func, air, liveness),
+            .plan9 => return @fieldParentPtr(Plan9, "base", base).updateFunc(module, func, air, liveness),
+            // zig fmt: on
         }
     }
 

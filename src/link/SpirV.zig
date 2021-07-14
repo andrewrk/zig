@@ -36,6 +36,8 @@ const ResultId = codegen.ResultId;
 const trace = @import("../tracy.zig").trace;
 const build_options = @import("build_options");
 const spec = @import("../codegen/spirv/spec.zig");
+const Air = @import("../Air.zig");
+const Liveness = @import("../Liveness.zig");
 
 // TODO: Should this struct be used at all rather than just a hashmap of aux data for every decl?
 pub const FnData = struct {
@@ -101,7 +103,23 @@ pub fn deinit(self: *SpirV) void {
     self.decl_table.deinit(self.base.allocator);
 }
 
+pub fn updateFunc(self: *SpirV, module: *Module, func: *Module.Fn, air: Air, liveness: Liveness) !void {
+    if (build_options.skip_non_native) {
+        @panic("Attempted to compile for architecture that was disabled by build configuration");
+    }
+    _ = module;
+    // Keep track of all decls so we can iterate over them on flush().
+    _ = try self.decl_table.getOrPut(self.base.allocator, func.owner_decl);
+
+    _ = air;
+    _ = liveness;
+    @panic("TODO SPIR-V needs to keep track of Air and Liveness so it can use them later");
+}
+
 pub fn updateDecl(self: *SpirV, module: *Module, decl: *Module.Decl) !void {
+    if (build_options.skip_non_native) {
+        @panic("Attempted to compile for architecture that was disabled by build configuration");
+    }
     _ = module;
     // Keep track of all decls so we can iterate over them on flush().
     _ = try self.decl_table.getOrPut(self.base.allocator, decl);
@@ -132,6 +150,10 @@ pub fn flush(self: *SpirV, comp: *Compilation) !void {
 }
 
 pub fn flushModule(self: *SpirV, comp: *Compilation) !void {
+    if (build_options.skip_non_native) {
+        @panic("Attempted to compile for architecture that was disabled by build configuration");
+    }
+
     const tracy = trace(@src());
     defer tracy.end();
 

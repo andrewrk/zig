@@ -1,6 +1,7 @@
 const Coff = @This();
 
 const std = @import("std");
+const builtin = @import("builtin");
 const log = std.log.scoped(.link);
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
@@ -17,6 +18,8 @@ const build_options = @import("build_options");
 const Cache = @import("../Cache.zig");
 const mingw = @import("../mingw.zig");
 const llvm_backend = @import("../codegen/llvm.zig");
+const Air = @import("../Air.zig");
+const Liveness = @import("../Liveness.zig");
 
 const allocation_padding = 4 / 3;
 const minimum_text_block_size = 64 * allocation_padding;
@@ -653,18 +656,57 @@ fn writeOffsetTableEntry(self: *Coff, index: usize) !void {
     }
 }
 
-pub fn updateDecl(self: *Coff, module: *Module, decl: *Module.Decl) !void {
-    // TODO COFF/PE debug information
-    // TODO Implement exports
+pub fn updateFunc(self: *Coff, module: *Module, func: *Module.Fn, air: Air, liveness: Liveness) !void {
+    if (build_options.skip_non_native and builtin.object_format != .coff and builtin.object_format != .pe) {
+        @panic("Attempted to compile for object format that was disabled by build configuration");
+    }
+    if (build_options.have_llvm) {
+        if (self.llvm_object) |llvm_object| return llvm_object.updateFunc(module, func, air, liveness);
+    }
     const tracy = trace(@src());
     defer tracy.end();
 
-    if (build_options.have_llvm)
-        if (self.llvm_object) |llvm_object| return try llvm_object.updateDecl(module, decl);
+    var code_buffer = std.ArrayList(u8).init(self.base.allocator);
+    defer code_buffer.deinit();
+
+    const res = try codegen.generateFunction(
+        &self.base,
+        decl.srcLoc(),
+        func,
+        air,
+        liveness,
+        &code_buffer,
+        .none,
+    );
+    const code = switch (res) {
+        .externally_managed => |x| x,
+        .appended => code_buffer.items,
+        .fail => |em| {
+            decl.analysis = .codegen_failure;
+            try module.failed_decls.put(module.gpa, decl, em);
+            return;
+        },
+    };
+
+    return self.finishUpdateDecl(module, func.owner_decl, code);
+}
+
+pub fn updateDecl(self: *Coff, module: *Module, decl: *Module.Decl) !void {
+    if (build_options.skip_non_native and builtin.object_format != .coff and builtin.object_format != .pe) {
+        @panic("Attempted to compile for object format that was disabled by build configuration");
+    }
+    if (build_options.have_llvm) {
+        if (self.llvm_object) |llvm_object| return llvm_object.updateDecl(module, decl);
+    }
+    const tracy = trace(@src());
+    defer tracy.end();
 
     if (decl.val.tag() == .extern_fn) {
         return; // TODO Should we do more when front-end analyzed extern decl?
     }
+
+    // TODO COFF/PE debug information
+    // TODO Implement exports
 
     var code_buffer = std.ArrayList(u8).init(self.base.allocator);
     defer code_buffer.deinit();
@@ -683,6 +725,10 @@ pub fn updateDecl(self: *Coff, module: *Module, decl: *Module.Decl) !void {
         },
     };
 
+    return self.finishUpdateDecl(module, func.owner_decl, code);
+}
+
+fn finishUpdateDecl(self: *Coff, decl: *Module.Decl, code: []const u8) !void {
     const required_alignment = decl.ty.abiAlignment(self.base.options.target);
     const curr_size = decl.link.coff.size;
     if (curr_size != 0) {

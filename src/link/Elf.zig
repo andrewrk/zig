@@ -1,6 +1,7 @@
 const Elf = @This();
 
 const std = @import("std");
+const builtin = @import("builtin");
 const mem = std.mem;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
@@ -10,7 +11,6 @@ const log = std.log.scoped(.link);
 const DW = std.dwarf;
 const leb128 = std.leb;
 
-const ir = @import("../air.zig");
 const Module = @import("../Module.zig");
 const Compilation = @import("../Compilation.zig");
 const codegen = @import("../codegen.zig");
@@ -26,6 +26,8 @@ const glibc = @import("../glibc.zig");
 const musl = @import("../musl.zig");
 const Cache = @import("../Cache.zig");
 const llvm_backend = @import("../codegen/llvm.zig");
+const Air = @import("../Air.zig");
+const Liveness = @import("../Liveness.zig");
 
 const default_entry_addr = 0x8000000;
 
@@ -2155,137 +2157,16 @@ pub fn freeDecl(self: *Elf, decl: *Module.Decl) void {
     }
 }
 
-pub fn updateDecl(self: *Elf, module: *Module, decl: *Module.Decl) !void {
-    const tracy = trace(@src());
-    defer tracy.end();
-
-    if (build_options.have_llvm)
-        if (self.llvm_object) |llvm_object| return try llvm_object.updateDecl(module, decl);
-
-    if (decl.val.tag() == .extern_fn) {
-        return; // TODO Should we do more when front-end analyzed extern decl?
+fn deinitRelocs(gpa: *Allocator, table: *File.DbgInfoTypeRelocsTable) void {
+    var it = table.valueIterator();
+    while (it.next()) |value| {
+        value.relocs.deinit(gpa);
     }
-    if (decl.val.castTag(.variable)) |payload| {
-        const variable = payload.data;
-        if (variable.is_extern) {
-            return; // TODO Should we do more when front-end analyzed extern decl?
-        }
-    }
+    table.deinit(gpa);
+}
 
-    var code_buffer = std.ArrayList(u8).init(self.base.allocator);
-    defer code_buffer.deinit();
-
-    var dbg_line_buffer = std.ArrayList(u8).init(self.base.allocator);
-    defer dbg_line_buffer.deinit();
-
-    var dbg_info_buffer = std.ArrayList(u8).init(self.base.allocator);
-    defer dbg_info_buffer.deinit();
-
-    var dbg_info_type_relocs: File.DbgInfoTypeRelocsTable = .{};
-    defer {
-        var it = dbg_info_type_relocs.valueIterator();
-        while (it.next()) |value| {
-            value.relocs.deinit(self.base.allocator);
-        }
-        dbg_info_type_relocs.deinit(self.base.allocator);
-    }
-
-    const is_fn: bool = switch (decl.ty.zigTypeTag()) {
-        .Fn => true,
-        else => false,
-    };
-    if (is_fn) {
-        // For functions we need to add a prologue to the debug line program.
-        try dbg_line_buffer.ensureCapacity(26);
-
-        const func = decl.val.castTag(.function).?.data;
-        const line_off = @intCast(u28, decl.src_line + func.lbrace_line);
-
-        const ptr_width_bytes = self.ptrWidthBytes();
-        dbg_line_buffer.appendSliceAssumeCapacity(&[_]u8{
-            DW.LNS_extended_op,
-            ptr_width_bytes + 1,
-            DW.LNE_set_address,
-        });
-        // This is the "relocatable" vaddr, corresponding to `code_buffer` index `0`.
-        assert(dbg_line_vaddr_reloc_index == dbg_line_buffer.items.len);
-        dbg_line_buffer.items.len += ptr_width_bytes;
-
-        dbg_line_buffer.appendAssumeCapacity(DW.LNS_advance_line);
-        // This is the "relocatable" relative line offset from the previous function's end curly
-        // to this function's begin curly.
-        assert(self.getRelocDbgLineOff() == dbg_line_buffer.items.len);
-        // Here we use a ULEB128-fixed-4 to make sure this field can be overwritten later.
-        leb128.writeUnsignedFixed(4, dbg_line_buffer.addManyAsArrayAssumeCapacity(4), line_off);
-
-        dbg_line_buffer.appendAssumeCapacity(DW.LNS_set_file);
-        assert(self.getRelocDbgFileIndex() == dbg_line_buffer.items.len);
-        // Once we support more than one source file, this will have the ability to be more
-        // than one possible value.
-        const file_index = 1;
-        leb128.writeUnsignedFixed(4, dbg_line_buffer.addManyAsArrayAssumeCapacity(4), file_index);
-
-        // Emit a line for the begin curly with prologue_end=false. The codegen will
-        // do the work of setting prologue_end=true and epilogue_begin=true.
-        dbg_line_buffer.appendAssumeCapacity(DW.LNS_copy);
-
-        // .debug_info subprogram
-        const decl_name_with_null = decl.name[0 .. mem.lenZ(decl.name) + 1];
-        try dbg_info_buffer.ensureCapacity(dbg_info_buffer.items.len + 25 + decl_name_with_null.len);
-
-        const fn_ret_type = decl.ty.fnReturnType();
-        const fn_ret_has_bits = fn_ret_type.hasCodeGenBits();
-        if (fn_ret_has_bits) {
-            dbg_info_buffer.appendAssumeCapacity(abbrev_subprogram);
-        } else {
-            dbg_info_buffer.appendAssumeCapacity(abbrev_subprogram_retvoid);
-        }
-        // These get overwritten after generating the machine code. These values are
-        // "relocations" and have to be in this fixed place so that functions can be
-        // moved in virtual address space.
-        assert(dbg_info_low_pc_reloc_index == dbg_info_buffer.items.len);
-        dbg_info_buffer.items.len += ptr_width_bytes; // DW.AT_low_pc,  DW.FORM_addr
-        assert(self.getRelocDbgInfoSubprogramHighPC() == dbg_info_buffer.items.len);
-        dbg_info_buffer.items.len += 4; // DW.AT_high_pc,  DW.FORM_data4
-        if (fn_ret_has_bits) {
-            const gop = try dbg_info_type_relocs.getOrPut(self.base.allocator, fn_ret_type);
-            if (!gop.found_existing) {
-                gop.value_ptr.* = .{
-                    .off = undefined,
-                    .relocs = .{},
-                };
-            }
-            try gop.value_ptr.relocs.append(self.base.allocator, @intCast(u32, dbg_info_buffer.items.len));
-            dbg_info_buffer.items.len += 4; // DW.AT_type,  DW.FORM_ref4
-        }
-        dbg_info_buffer.appendSliceAssumeCapacity(decl_name_with_null); // DW.AT_name, DW.FORM_string
-    } else {
-        // TODO implement .debug_info for global variables
-    }
-    const decl_val = if (decl.val.castTag(.variable)) |payload| payload.data.init else decl.val;
-    const res = try codegen.generateSymbol(&self.base, decl.srcLoc(), .{
-        .ty = decl.ty,
-        .val = decl_val,
-    }, &code_buffer, .{
-        .dwarf = .{
-            .dbg_line = &dbg_line_buffer,
-            .dbg_info = &dbg_info_buffer,
-            .dbg_info_type_relocs = &dbg_info_type_relocs,
-        },
-    });
-    const code = switch (res) {
-        .externally_managed => |x| x,
-        .appended => code_buffer.items,
-        .fail => |em| {
-            decl.analysis = .codegen_failure;
-            try module.failed_decls.put(module.gpa, decl, em);
-            return;
-        },
-    };
-
+fn updateDeclCode(self: *Elf, decl: *Module.Decl, code: []const u8, stt_bits: u8) !*elf.Elf64_Sym {
     const required_alignment = decl.ty.abiAlignment(self.base.options.target);
-
-    const stt_bits: u8 = if (is_fn) elf.STT_FUNC else elf.STT_OBJECT;
 
     assert(decl.link.elf.local_sym_index != 0); // Caller forgot to allocateDeclIndexes()
     const local_sym = &self.local_symbols.items[decl.link.elf.local_sym_index];
@@ -2338,128 +2219,16 @@ pub fn updateDecl(self: *Elf, module: *Module, decl: *Module.Decl) !void {
     const file_offset = self.sections.items[self.text_section_index.?].sh_offset + section_offset;
     try self.base.file.?.pwriteAll(code, file_offset);
 
-    const target_endian = self.base.options.target.cpu.arch.endian();
+    return local_sym;
+}
 
-    const text_block = &decl.link.elf;
-
-    // If the Decl is a function, we need to update the .debug_line program.
-    if (is_fn) {
-        // Perform the relocations based on vaddr.
-        switch (self.ptr_width) {
-            .p32 => {
-                {
-                    const ptr = dbg_line_buffer.items[dbg_line_vaddr_reloc_index..][0..4];
-                    mem.writeInt(u32, ptr, @intCast(u32, local_sym.st_value), target_endian);
-                }
-                {
-                    const ptr = dbg_info_buffer.items[dbg_info_low_pc_reloc_index..][0..4];
-                    mem.writeInt(u32, ptr, @intCast(u32, local_sym.st_value), target_endian);
-                }
-            },
-            .p64 => {
-                {
-                    const ptr = dbg_line_buffer.items[dbg_line_vaddr_reloc_index..][0..8];
-                    mem.writeInt(u64, ptr, local_sym.st_value, target_endian);
-                }
-                {
-                    const ptr = dbg_info_buffer.items[dbg_info_low_pc_reloc_index..][0..8];
-                    mem.writeInt(u64, ptr, local_sym.st_value, target_endian);
-                }
-            },
-        }
-        {
-            const ptr = dbg_info_buffer.items[self.getRelocDbgInfoSubprogramHighPC()..][0..4];
-            mem.writeInt(u32, ptr, @intCast(u32, local_sym.st_size), target_endian);
-        }
-
-        try dbg_line_buffer.appendSlice(&[_]u8{ DW.LNS_extended_op, 1, DW.LNE_end_sequence });
-
-        // Now we have the full contents and may allocate a region to store it.
-
-        // This logic is nearly identical to the logic below in `updateDeclDebugInfoAllocation` for
-        // `TextBlock` and the .debug_info. If you are editing this logic, you
-        // probably need to edit that logic too.
-
-        const debug_line_sect = &self.sections.items[self.debug_line_section_index.?];
-        const src_fn = &decl.fn_link.elf;
-        src_fn.len = @intCast(u32, dbg_line_buffer.items.len);
-        if (self.dbg_line_fn_last) |last| not_first: {
-            if (src_fn.next) |next| {
-                // Update existing function - non-last item.
-                if (src_fn.off + src_fn.len + min_nop_size > next.off) {
-                    // It grew too big, so we move it to a new location.
-                    if (src_fn.prev) |prev| {
-                        self.dbg_line_fn_free_list.put(self.base.allocator, prev, {}) catch {};
-                        prev.next = src_fn.next;
-                    }
-                    assert(src_fn.prev != next);
-                    next.prev = src_fn.prev;
-                    src_fn.next = null;
-                    // Populate where it used to be with NOPs.
-                    const file_pos = debug_line_sect.sh_offset + src_fn.off;
-                    try self.pwriteDbgLineNops(0, &[0]u8{}, src_fn.len, file_pos);
-                    // TODO Look at the free list before appending at the end.
-                    src_fn.prev = last;
-                    last.next = src_fn;
-                    self.dbg_line_fn_last = src_fn;
-
-                    src_fn.off = last.off + padToIdeal(last.len);
-                }
-            } else if (src_fn.prev == null) {
-                if (src_fn == last) {
-                    // Special case: there is only 1 function and it is being updated.
-                    // In this case there is nothing to do. The function's length has
-                    // already been updated, and the logic below takes care of
-                    // resizing the .debug_line section.
-                    break :not_first;
-                }
-                // Append new function.
-                // TODO Look at the free list before appending at the end.
-                src_fn.prev = last;
-                last.next = src_fn;
-                self.dbg_line_fn_last = src_fn;
-
-                src_fn.off = last.off + padToIdeal(last.len);
-            }
-        } else {
-            // This is the first function of the Line Number Program.
-            self.dbg_line_fn_first = src_fn;
-            self.dbg_line_fn_last = src_fn;
-
-            src_fn.off = padToIdeal(self.dbgLineNeededHeaderBytes());
-        }
-
-        const last_src_fn = self.dbg_line_fn_last.?;
-        const needed_size = last_src_fn.off + last_src_fn.len;
-        if (needed_size != debug_line_sect.sh_size) {
-            if (needed_size > self.allocatedSize(debug_line_sect.sh_offset)) {
-                const new_offset = self.findFreeSpace(needed_size, 1);
-                const existing_size = last_src_fn.off;
-                log.debug("moving .debug_line section: {d} bytes from 0x{x} to 0x{x}", .{
-                    existing_size,
-                    debug_line_sect.sh_offset,
-                    new_offset,
-                });
-                const amt = try self.base.file.?.copyRangeAll(debug_line_sect.sh_offset, self.base.file.?, new_offset, existing_size);
-                if (amt != existing_size) return error.InputOutput;
-                debug_line_sect.sh_offset = new_offset;
-            }
-            debug_line_sect.sh_size = needed_size;
-            self.shdr_table_dirty = true; // TODO look into making only the one section dirty
-            self.debug_line_header_dirty = true;
-        }
-        const prev_padding_size: u32 = if (src_fn.prev) |prev| src_fn.off - (prev.off + prev.len) else 0;
-        const next_padding_size: u32 = if (src_fn.next) |next| next.off - (src_fn.off + src_fn.len) else 0;
-
-        // We only have support for one compilation unit so far, so the offsets are directly
-        // from the .debug_line section.
-        const file_pos = debug_line_sect.sh_offset + src_fn.off;
-        try self.pwriteDbgLineNops(prev_padding_size, dbg_line_buffer.items, next_padding_size, file_pos);
-
-        // .debug_info - End the TAG_subprogram children.
-        try dbg_info_buffer.append(0);
-    }
-
+fn finishUpdateDecl(
+    self: *Elf,
+    module: *Module,
+    decl: *Module.Decl,
+    dbg_info_type_relocs: *File.DbgInfoTypeRelocsTable,
+    dbg_info_buffer: *std.ArrayList(u8),
+) !void {
     // Now we emit the .debug_info types of the Decl. These will count towards the size of
     // the buffer, so we have to do it before computing the offset, and we can't perform the actual
     // relocations yet.
@@ -2467,11 +2236,14 @@ pub fn updateDecl(self: *Elf, module: *Module, decl: *Module.Decl) !void {
         var it = dbg_info_type_relocs.iterator();
         while (it.next()) |entry| {
             entry.value_ptr.off = @intCast(u32, dbg_info_buffer.items.len);
-            try self.addDbgInfoType(entry.key_ptr.*, &dbg_info_buffer);
+            try self.addDbgInfoType(entry.key_ptr.*, dbg_info_buffer);
         }
     }
 
+    const text_block = &decl.link.elf;
     try self.updateDeclDebugInfoAllocation(text_block, @intCast(u32, dbg_info_buffer.items.len));
+
+    const target_endian = self.base.options.target.cpu.arch.endian();
 
     {
         // Now that we have the offset assigned we can finally perform type relocations.
@@ -2493,6 +2265,292 @@ pub fn updateDecl(self: *Elf, module: *Module, decl: *Module.Decl) !void {
     // Since we updated the vaddr and the size, each corresponding export symbol also needs to be updated.
     const decl_exports = module.decl_exports.get(decl) orelse &[0]*Module.Export{};
     return self.updateDeclExports(module, decl, decl_exports);
+}
+
+pub fn updateFunc(self: *Elf, module: *Module, func: *Module.Fn, air: Air, liveness: Liveness) !void {
+    if (build_options.skip_non_native and builtin.object_format != .elf) {
+        @panic("Attempted to compile for object format that was disabled by build configuration");
+    }
+    if (build_options.have_llvm) {
+        if (self.llvm_object) |llvm_object| return llvm_object.updateFunc(module, func, air, liveness);
+    }
+
+    const tracy = trace(@src());
+    defer tracy.end();
+
+    var code_buffer = std.ArrayList(u8).init(self.base.allocator);
+    defer code_buffer.deinit();
+
+    var dbg_line_buffer = std.ArrayList(u8).init(self.base.allocator);
+    defer dbg_line_buffer.deinit();
+
+    var dbg_info_buffer = std.ArrayList(u8).init(self.base.allocator);
+    defer dbg_info_buffer.deinit();
+
+    var dbg_info_type_relocs: File.DbgInfoTypeRelocsTable = .{};
+    defer deinitRelocs(self.base.allocator, &dbg_info_type_relocs);
+
+    // For functions we need to add a prologue to the debug line program.
+    try dbg_line_buffer.ensureCapacity(26);
+
+    const decl = func.owner_decl;
+    const line_off = @intCast(u28, decl.src_line + func.lbrace_line);
+
+    const ptr_width_bytes = self.ptrWidthBytes();
+    dbg_line_buffer.appendSliceAssumeCapacity(&[_]u8{
+        DW.LNS_extended_op,
+        ptr_width_bytes + 1,
+        DW.LNE_set_address,
+    });
+    // This is the "relocatable" vaddr, corresponding to `code_buffer` index `0`.
+    assert(dbg_line_vaddr_reloc_index == dbg_line_buffer.items.len);
+    dbg_line_buffer.items.len += ptr_width_bytes;
+
+    dbg_line_buffer.appendAssumeCapacity(DW.LNS_advance_line);
+    // This is the "relocatable" relative line offset from the previous function's end curly
+    // to this function's begin curly.
+    assert(self.getRelocDbgLineOff() == dbg_line_buffer.items.len);
+    // Here we use a ULEB128-fixed-4 to make sure this field can be overwritten later.
+    leb128.writeUnsignedFixed(4, dbg_line_buffer.addManyAsArrayAssumeCapacity(4), line_off);
+
+    dbg_line_buffer.appendAssumeCapacity(DW.LNS_set_file);
+    assert(self.getRelocDbgFileIndex() == dbg_line_buffer.items.len);
+    // Once we support more than one source file, this will have the ability to be more
+    // than one possible value.
+    const file_index = 1;
+    leb128.writeUnsignedFixed(4, dbg_line_buffer.addManyAsArrayAssumeCapacity(4), file_index);
+
+    // Emit a line for the begin curly with prologue_end=false. The codegen will
+    // do the work of setting prologue_end=true and epilogue_begin=true.
+    dbg_line_buffer.appendAssumeCapacity(DW.LNS_copy);
+
+    // .debug_info subprogram
+    const decl_name_with_null = decl.name[0 .. mem.lenZ(decl.name) + 1];
+    try dbg_info_buffer.ensureCapacity(dbg_info_buffer.items.len + 25 + decl_name_with_null.len);
+
+    const fn_ret_type = decl.ty.fnReturnType();
+    const fn_ret_has_bits = fn_ret_type.hasCodeGenBits();
+    if (fn_ret_has_bits) {
+        dbg_info_buffer.appendAssumeCapacity(abbrev_subprogram);
+    } else {
+        dbg_info_buffer.appendAssumeCapacity(abbrev_subprogram_retvoid);
+    }
+    // These get overwritten after generating the machine code. These values are
+    // "relocations" and have to be in this fixed place so that functions can be
+    // moved in virtual address space.
+    assert(dbg_info_low_pc_reloc_index == dbg_info_buffer.items.len);
+    dbg_info_buffer.items.len += ptr_width_bytes; // DW.AT_low_pc,  DW.FORM_addr
+    assert(self.getRelocDbgInfoSubprogramHighPC() == dbg_info_buffer.items.len);
+    dbg_info_buffer.items.len += 4; // DW.AT_high_pc,  DW.FORM_data4
+    if (fn_ret_has_bits) {
+        const gop = try dbg_info_type_relocs.getOrPut(self.base.allocator, fn_ret_type);
+        if (!gop.found_existing) {
+            gop.value_ptr.* = .{
+                .off = undefined,
+                .relocs = .{},
+            };
+        }
+        try gop.value_ptr.relocs.append(self.base.allocator, @intCast(u32, dbg_info_buffer.items.len));
+        dbg_info_buffer.items.len += 4; // DW.AT_type,  DW.FORM_ref4
+    }
+    dbg_info_buffer.appendSliceAssumeCapacity(decl_name_with_null); // DW.AT_name, DW.FORM_string
+
+    const res = try codegen.generateFunction(&self.base, decl.srcLoc(), func, air, liveness, &code_buffer, .{
+        .dwarf = .{
+            .dbg_line = &dbg_line_buffer,
+            .dbg_info = &dbg_info_buffer,
+            .dbg_info_type_relocs = &dbg_info_type_relocs,
+        },
+    });
+    const code = switch (res) {
+        .appended => code_buffer.items,
+        .fail => |em| {
+            decl.analysis = .codegen_failure;
+            try module.failed_decls.put(module.gpa, decl, em);
+            return;
+        },
+    };
+
+    const local_sym = try self.updateDeclCode(decl, code, elf.STT_FUNC);
+
+    const target_endian = self.base.options.target.cpu.arch.endian();
+
+    // Since the Decl is a function, we need to update the .debug_line program.
+    // Perform the relocations based on vaddr.
+    switch (self.ptr_width) {
+        .p32 => {
+            {
+                const ptr = dbg_line_buffer.items[dbg_line_vaddr_reloc_index..][0..4];
+                mem.writeInt(u32, ptr, @intCast(u32, local_sym.st_value), target_endian);
+            }
+            {
+                const ptr = dbg_info_buffer.items[dbg_info_low_pc_reloc_index..][0..4];
+                mem.writeInt(u32, ptr, @intCast(u32, local_sym.st_value), target_endian);
+            }
+        },
+        .p64 => {
+            {
+                const ptr = dbg_line_buffer.items[dbg_line_vaddr_reloc_index..][0..8];
+                mem.writeInt(u64, ptr, local_sym.st_value, target_endian);
+            }
+            {
+                const ptr = dbg_info_buffer.items[dbg_info_low_pc_reloc_index..][0..8];
+                mem.writeInt(u64, ptr, local_sym.st_value, target_endian);
+            }
+        },
+    }
+    {
+        const ptr = dbg_info_buffer.items[self.getRelocDbgInfoSubprogramHighPC()..][0..4];
+        mem.writeInt(u32, ptr, @intCast(u32, local_sym.st_size), target_endian);
+    }
+
+    try dbg_line_buffer.appendSlice(&[_]u8{ DW.LNS_extended_op, 1, DW.LNE_end_sequence });
+
+    // Now we have the full contents and may allocate a region to store it.
+
+    // This logic is nearly identical to the logic below in `updateDeclDebugInfoAllocation` for
+    // `TextBlock` and the .debug_info. If you are editing this logic, you
+    // probably need to edit that logic too.
+
+    const debug_line_sect = &self.sections.items[self.debug_line_section_index.?];
+    const src_fn = &decl.fn_link.elf;
+    src_fn.len = @intCast(u32, dbg_line_buffer.items.len);
+    if (self.dbg_line_fn_last) |last| not_first: {
+        if (src_fn.next) |next| {
+            // Update existing function - non-last item.
+            if (src_fn.off + src_fn.len + min_nop_size > next.off) {
+                // It grew too big, so we move it to a new location.
+                if (src_fn.prev) |prev| {
+                    self.dbg_line_fn_free_list.put(self.base.allocator, prev, {}) catch {};
+                    prev.next = src_fn.next;
+                }
+                assert(src_fn.prev != next);
+                next.prev = src_fn.prev;
+                src_fn.next = null;
+                // Populate where it used to be with NOPs.
+                const file_pos = debug_line_sect.sh_offset + src_fn.off;
+                try self.pwriteDbgLineNops(0, &[0]u8{}, src_fn.len, file_pos);
+                // TODO Look at the free list before appending at the end.
+                src_fn.prev = last;
+                last.next = src_fn;
+                self.dbg_line_fn_last = src_fn;
+
+                src_fn.off = last.off + padToIdeal(last.len);
+            }
+        } else if (src_fn.prev == null) {
+            if (src_fn == last) {
+                // Special case: there is only 1 function and it is being updated.
+                // In this case there is nothing to do. The function's length has
+                // already been updated, and the logic below takes care of
+                // resizing the .debug_line section.
+                break :not_first;
+            }
+            // Append new function.
+            // TODO Look at the free list before appending at the end.
+            src_fn.prev = last;
+            last.next = src_fn;
+            self.dbg_line_fn_last = src_fn;
+
+            src_fn.off = last.off + padToIdeal(last.len);
+        }
+    } else {
+        // This is the first function of the Line Number Program.
+        self.dbg_line_fn_first = src_fn;
+        self.dbg_line_fn_last = src_fn;
+
+        src_fn.off = padToIdeal(self.dbgLineNeededHeaderBytes());
+    }
+
+    const last_src_fn = self.dbg_line_fn_last.?;
+    const needed_size = last_src_fn.off + last_src_fn.len;
+    if (needed_size != debug_line_sect.sh_size) {
+        if (needed_size > self.allocatedSize(debug_line_sect.sh_offset)) {
+            const new_offset = self.findFreeSpace(needed_size, 1);
+            const existing_size = last_src_fn.off;
+            log.debug("moving .debug_line section: {d} bytes from 0x{x} to 0x{x}", .{
+                existing_size,
+                debug_line_sect.sh_offset,
+                new_offset,
+            });
+            const amt = try self.base.file.?.copyRangeAll(debug_line_sect.sh_offset, self.base.file.?, new_offset, existing_size);
+            if (amt != existing_size) return error.InputOutput;
+            debug_line_sect.sh_offset = new_offset;
+        }
+        debug_line_sect.sh_size = needed_size;
+        self.shdr_table_dirty = true; // TODO look into making only the one section dirty
+        self.debug_line_header_dirty = true;
+    }
+    const prev_padding_size: u32 = if (src_fn.prev) |prev| src_fn.off - (prev.off + prev.len) else 0;
+    const next_padding_size: u32 = if (src_fn.next) |next| next.off - (src_fn.off + src_fn.len) else 0;
+
+    // We only have support for one compilation unit so far, so the offsets are directly
+    // from the .debug_line section.
+    const file_pos = debug_line_sect.sh_offset + src_fn.off;
+    try self.pwriteDbgLineNops(prev_padding_size, dbg_line_buffer.items, next_padding_size, file_pos);
+
+    // .debug_info - End the TAG_subprogram children.
+    try dbg_info_buffer.append(0);
+
+    return self.finishUpdateDecl(module, decl, &dbg_info_type_relocs, &dbg_info_buffer);
+}
+
+pub fn updateDecl(self: *Elf, module: *Module, decl: *Module.Decl) !void {
+    if (build_options.skip_non_native and builtin.object_format != .elf) {
+        @panic("Attempted to compile for object format that was disabled by build configuration");
+    }
+    if (build_options.have_llvm) {
+        if (self.llvm_object) |llvm_object| return llvm_object.updateDecl(module, decl);
+    }
+
+    const tracy = trace(@src());
+    defer tracy.end();
+
+    if (decl.val.tag() == .extern_fn) {
+        return; // TODO Should we do more when front-end analyzed extern decl?
+    }
+    if (decl.val.castTag(.variable)) |payload| {
+        const variable = payload.data;
+        if (variable.is_extern) {
+            return; // TODO Should we do more when front-end analyzed extern decl?
+        }
+    }
+
+    var code_buffer = std.ArrayList(u8).init(self.base.allocator);
+    defer code_buffer.deinit();
+
+    var dbg_line_buffer = std.ArrayList(u8).init(self.base.allocator);
+    defer dbg_line_buffer.deinit();
+
+    var dbg_info_buffer = std.ArrayList(u8).init(self.base.allocator);
+    defer dbg_info_buffer.deinit();
+
+    var dbg_info_type_relocs: File.DbgInfoTypeRelocsTable = .{};
+    defer deinitRelocs(self.base.allocator, &dbg_info_type_relocs);
+
+    // TODO implement .debug_info for global variables
+    const decl_val = if (decl.val.castTag(.variable)) |payload| payload.data.init else decl.val;
+    const res = try codegen.generateSymbol(&self.base, decl.srcLoc(), .{
+        .ty = decl.ty,
+        .val = decl_val,
+    }, &code_buffer, .{
+        .dwarf = .{
+            .dbg_line = &dbg_line_buffer,
+            .dbg_info = &dbg_info_buffer,
+            .dbg_info_type_relocs = &dbg_info_type_relocs,
+        },
+    });
+    const code = switch (res) {
+        .externally_managed => |x| x,
+        .appended => code_buffer.items,
+        .fail => |em| {
+            decl.analysis = .codegen_failure;
+            try module.failed_decls.put(module.gpa, decl, em);
+            return;
+        },
+    };
+
+    _ = try self.updateDeclCode(decl, code, elf.STT_OBJECT);
+    return self.finishUpdateDecl(module, decl, &dbg_info_type_relocs, &dbg_info_buffer);
 }
 
 /// Asserts the type has codegen bits.

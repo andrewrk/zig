@@ -983,7 +983,7 @@ fn suspendExpr(
     }
     try suspend_scope.setBlockBody(suspend_inst);
 
-    return gz.indexToRef(suspend_inst);
+    return indexToRef(suspend_inst);
 }
 
 fn awaitExpr(
@@ -1294,7 +1294,7 @@ fn arrayInitExprRlPtr(
             .lhs = result_ptr,
             .rhs = index_inst,
         });
-        elem_ptr_list[i] = gz.refToIndex(elem_ptr).?;
+        elem_ptr_list[i] = refToIndex(elem_ptr).?;
         _ = try expr(gz, scope, .{ .ptr = elem_ptr }, elem_init);
     }
     _ = try gz.addPlNode(.validate_array_init_ptr, node, Zir.Inst.Block{
@@ -1449,7 +1449,7 @@ fn structInitExprRlPtr(
             .lhs = result_ptr,
             .field_name_start = str_index,
         });
-        field_ptr_list[i] = gz.refToIndex(field_ptr).?;
+        field_ptr_list[i] = refToIndex(field_ptr).?;
         _ = try expr(gz, scope, .{ .ptr = field_ptr }, field_init);
     }
     _ = try gz.addPlNode(.validate_struct_init_ptr, node, Zir.Inst.Block{
@@ -1483,7 +1483,7 @@ fn structInitExprRlTy(
             .name_start = str_index,
         });
         fields_list[i] = .{
-            .field_type = gz.refToIndex(field_ty_inst).?,
+            .field_type = refToIndex(field_ty_inst).?,
             .init = try expr(gz, scope, .{ .ty = field_ty_inst }, field_init),
         };
     }
@@ -1780,7 +1780,7 @@ fn labeledBlockExpr(
             }
             try block_scope.setBlockBody(block_inst);
 
-            return gz.indexToRef(block_inst);
+            return indexToRef(block_inst);
         },
         .break_operand => {
             // All break operands are values that did not use the result location pointer.
@@ -1794,7 +1794,7 @@ fn labeledBlockExpr(
             } else {
                 try block_scope.setBlockBody(block_inst);
             }
-            const block_ref = gz.indexToRef(block_inst);
+            const block_ref = indexToRef(block_inst);
             switch (rl) {
                 .ref => return block_ref,
                 else => return rvalue(gz, rl, block_ref, block_node),
@@ -1872,7 +1872,7 @@ fn unusedResultExpr(gz: *GenZir, scope: *Scope, statement: ast.Node.Index) Inner
     // we want to avoid adding the ZIR instruction if possible for performance.
     const maybe_unused_result = try expr(gz, scope, .none, statement);
     var noreturn_src_node: ast.Node.Index = 0;
-    const elide_check = if (gz.refToIndex(maybe_unused_result)) |inst| b: {
+    const elide_check = if (refToIndex(maybe_unused_result)) |inst| b: {
         // Note that this array becomes invalid after appending more items to it
         // in the above while loop.
         const zir_tags = gz.astgen.instructions.items(.tag);
@@ -2434,7 +2434,7 @@ fn varDecl(
                 // the alloc instruction and the store_to_block_ptr instruction.
                 try parent_zir.ensureUnusedCapacity(gpa, init_scope.instructions.items.len);
                 for (init_scope.instructions.items) |src_inst| {
-                    if (gz.indexToRef(src_inst) == init_scope.rl_ptr) continue;
+                    if (indexToRef(src_inst) == init_scope.rl_ptr) continue;
                     if (zir_tags[src_inst] == .store_to_block_ptr) {
                         if (zir_datas[src_inst].bin.lhs == init_scope.rl_ptr) continue;
                     }
@@ -2737,7 +2737,7 @@ fn ptrType(
     }
 
     const new_index = @intCast(Zir.Inst.Index, gz.astgen.instructions.len);
-    const result = gz.indexToRef(new_index);
+    const result = indexToRef(new_index);
     gz.astgen.instructions.appendAssumeCapacity(.{ .tag = .ptr_type, .data = .{
         .ptr_type = .{
             .flags = .{
@@ -3467,7 +3467,7 @@ fn structDeclInner(
             .body_len = 0,
             .decls_len = 0,
         });
-        return gz.indexToRef(decl_inst);
+        return indexToRef(decl_inst);
     }
 
     const astgen = gz.astgen;
@@ -3486,7 +3486,6 @@ fn structDeclInner(
         .astgen = astgen,
         .force_comptime = true,
         .in_defer = false,
-        .ref_start_index = gz.ref_start_index,
     };
     defer block_scope.instructions.deinit(gpa);
 
@@ -3724,7 +3723,7 @@ fn structDeclInner(
     }
     astgen.extra.appendSliceAssumeCapacity(fields_data.items);
 
-    return gz.indexToRef(decl_inst);
+    return indexToRef(decl_inst);
 }
 
 fn unionDeclInner(
@@ -3752,7 +3751,6 @@ fn unionDeclInner(
         .astgen = astgen,
         .force_comptime = true,
         .in_defer = false,
-        .ref_start_index = gz.ref_start_index,
     };
     defer block_scope.instructions.deinit(gpa);
 
@@ -4000,7 +3998,7 @@ fn unionDeclInner(
     astgen.extra.appendAssumeCapacity(cur_bit_bag);
     astgen.extra.appendSliceAssumeCapacity(fields_data.items);
 
-    return gz.indexToRef(decl_inst);
+    return indexToRef(decl_inst);
 }
 
 fn containerDecl(
@@ -4164,7 +4162,6 @@ fn containerDecl(
                 .astgen = astgen,
                 .force_comptime = true,
                 .in_defer = false,
-                .ref_start_index = gz.ref_start_index,
             };
             defer block_scope.instructions.deinit(gpa);
 
@@ -4392,7 +4389,7 @@ fn containerDecl(
             astgen.extra.appendAssumeCapacity(cur_bit_bag);
             astgen.extra.appendSliceAssumeCapacity(fields_data.items);
 
-            return rvalue(gz, rl, gz.indexToRef(decl_inst), node);
+            return rvalue(gz, rl, indexToRef(decl_inst), node);
         },
         .keyword_opaque => {
             var namespace: Scope.Namespace = .{ .parent = scope };
@@ -4553,7 +4550,7 @@ fn containerDecl(
             }
             astgen.extra.appendSliceAssumeCapacity(wip_decls.payload.items);
 
-            return rvalue(gz, rl, gz.indexToRef(decl_inst), node);
+            return rvalue(gz, rl, indexToRef(decl_inst), node);
         },
         else => unreachable,
     }
@@ -4791,7 +4788,7 @@ fn finishThenElseBlock(
             }
             assert(!strat.elide_store_to_block_ptr_instructions);
             try setCondBrPayload(condbr, cond, then_scope, else_scope);
-            return parent_gz.indexToRef(main_block);
+            return indexToRef(main_block);
         },
         .break_operand => {
             if (!parent_gz.refIsNoReturn(then_result)) {
@@ -4809,7 +4806,7 @@ fn finishThenElseBlock(
             } else {
                 try setCondBrPayload(condbr, cond, then_scope, else_scope);
             }
-            const block_ref = parent_gz.indexToRef(main_block);
+            const block_ref = indexToRef(main_block);
             switch (rl) {
                 .ref => return block_ref,
                 else => return rvalue(parent_gz, rl, block_ref, node),
@@ -4931,7 +4928,7 @@ fn boolBinOp(
     }
     try rhs_scope.setBoolBrBody(bool_br);
 
-    const block_ref = gz.indexToRef(bool_br);
+    const block_ref = indexToRef(bool_br);
     return rvalue(gz, rl, block_ref, node);
 }
 
@@ -5953,7 +5950,7 @@ fn switchExpr(
             if (!strat.elide_store_to_block_ptr_instructions) {
                 astgen.extra.appendSliceAssumeCapacity(scalar_cases_payload.items);
                 astgen.extra.appendSliceAssumeCapacity(multi_cases_payload.items);
-                return parent_gz.indexToRef(switch_block);
+                return indexToRef(switch_block);
             }
 
             // There will necessarily be a store_to_block_ptr for
@@ -5997,7 +5994,7 @@ fn switchExpr(
                         .lhs = block_scope.rl_ty_inst,
                         .rhs = zir_datas[break_inst].@"break".operand,
                     };
-                    zir_datas[break_inst].@"break".operand = parent_gz.indexToRef(store_inst);
+                    zir_datas[break_inst].@"break".operand = indexToRef(store_inst);
                 } else {
                     scalar_cases_payload.items[body_len_index] -= 1;
                     astgen.extra.appendSliceAssumeCapacity(scalar_cases_payload.items[0..extra_index]);
@@ -6039,7 +6036,7 @@ fn switchExpr(
                         .lhs = block_scope.rl_ty_inst,
                         .rhs = zir_datas[break_inst].@"break".operand,
                     };
-                    zir_datas[break_inst].@"break".operand = parent_gz.indexToRef(store_inst);
+                    zir_datas[break_inst].@"break".operand = indexToRef(store_inst);
                 } else {
                     scalar_cases_payload.items[body_len_index] -= 1;
                     astgen.extra.appendSliceAssumeCapacity(scalar_cases_payload.items[start_index..extra_index]);
@@ -6085,7 +6082,7 @@ fn switchExpr(
                         .lhs = block_scope.rl_ty_inst,
                         .rhs = zir_datas[break_inst].@"break".operand,
                     };
-                    zir_datas[break_inst].@"break".operand = parent_gz.indexToRef(store_inst);
+                    zir_datas[break_inst].@"break".operand = indexToRef(store_inst);
                 } else {
                     assert(zir_datas[store_inst].bin.lhs == block_scope.rl_ptr);
                     multi_cases_payload.items[body_len_index] -= 1;
@@ -6096,7 +6093,7 @@ fn switchExpr(
                 }
             }
 
-            const block_ref = parent_gz.indexToRef(switch_block);
+            const block_ref = indexToRef(switch_block);
             switch (rl) {
                 .ref => return block_ref,
                 else => return rvalue(parent_gz, rl, block_ref, switch_node),
@@ -6156,7 +6153,7 @@ fn switchExpr(
                 }
             }
 
-            return parent_gz.indexToRef(switch_block);
+            return indexToRef(switch_block);
         },
     }
 }
@@ -6855,7 +6852,7 @@ fn asRlPtr(
         const zir_datas = astgen.instructions.items(.data);
         try parent_zir.ensureUnusedCapacity(astgen.gpa, as_scope.instructions.items.len);
         for (as_scope.instructions.items) |src_inst| {
-            if (parent_gz.indexToRef(src_inst) == as_scope.rl_ptr) continue;
+            if (indexToRef(src_inst) == as_scope.rl_ptr) continue;
             if (zir_tags[src_inst] == .store_to_block_ptr) {
                 if (zir_datas[src_inst].bin.lhs == as_scope.rl_ptr) continue;
             }
@@ -6986,7 +6983,7 @@ fn builtinCall(
             const str_lit_token = main_tokens[operand_node];
             const str = try astgen.strLitAsString(str_lit_token);
             const result = try gz.addStrTok(.import, str.index, str_lit_token);
-            if (gz.refToIndex(result)) |import_inst_index| {
+            if (refToIndex(result)) |import_inst_index| {
                 const gop = try astgen.imports.getOrPut(astgen.gpa, str.index);
                 if (!gop.found_existing) {
                     gop.value_ptr.* = import_inst_index;
@@ -8701,9 +8698,6 @@ const GenZir = struct {
     in_defer: bool,
     /// How decls created in this scope should be named.
     anon_name_strategy: Zir.Inst.NameStrategy = .anon,
-    /// The end of special indexes. `Zir.Inst.Ref` subtracts against this number to convert
-    /// to `Zir.Inst.Index`. The default here is correct if there are 0 parameters.
-    ref_start_index: u32 = Zir.Inst.Ref.typed_value_map.len,
     /// The containing decl AST node.
     decl_node_index: ast.Node.Index,
     /// The containing decl line index, absolute.
@@ -8747,7 +8741,6 @@ const GenZir = struct {
         return .{
             .force_comptime = gz.force_comptime,
             .in_defer = gz.in_defer,
-            .ref_start_index = gz.ref_start_index,
             .decl_node_index = gz.decl_node_index,
             .decl_line = gz.decl_line,
             .parent = scope,
@@ -8765,7 +8758,7 @@ const GenZir = struct {
 
     fn refIsNoReturn(gz: GenZir, inst_ref: Zir.Inst.Ref) bool {
         if (inst_ref == .unreachable_value) return true;
-        if (gz.refToIndex(inst_ref)) |inst_index| {
+        if (refToIndex(inst_ref)) |inst_index| {
             return gz.astgen.instructions.items(.tag)[inst_index].isNoReturn();
         }
         return false;
@@ -8801,19 +8794,6 @@ const GenZir = struct {
 
     fn srcToken(gz: GenZir) ast.TokenIndex {
         return gz.astgen.tree.firstToken(gz.decl_node_index);
-    }
-
-    fn indexToRef(gz: GenZir, inst: Zir.Inst.Index) Zir.Inst.Ref {
-        return @intToEnum(Zir.Inst.Ref, gz.ref_start_index + inst);
-    }
-
-    fn refToIndex(gz: GenZir, inst: Zir.Inst.Ref) ?Zir.Inst.Index {
-        const ref_int = @enumToInt(inst);
-        if (ref_int >= gz.ref_start_index) {
-            return ref_int - gz.ref_start_index;
-        } else {
-            return null;
-        }
     }
 
     fn setBreakResultLoc(gz: *GenZir, parent_rl: AstGen.ResultLoc) void {
@@ -8994,7 +8974,7 @@ const GenZir = struct {
                 } },
             });
             gz.instructions.appendAssumeCapacity(new_index);
-            return gz.indexToRef(new_index);
+            return indexToRef(new_index);
         } else {
             try gz.astgen.extra.ensureUnusedCapacity(
                 gpa,
@@ -9021,7 +9001,7 @@ const GenZir = struct {
                 } },
             });
             gz.instructions.appendAssumeCapacity(new_index);
-            return gz.indexToRef(new_index);
+            return indexToRef(new_index);
         }
     }
 
@@ -9075,7 +9055,7 @@ const GenZir = struct {
             } },
         });
         gz.instructions.appendAssumeCapacity(new_index);
-        return gz.indexToRef(new_index);
+        return indexToRef(new_index);
     }
 
     fn addCall(
@@ -9109,7 +9089,7 @@ const GenZir = struct {
             } },
         });
         gz.instructions.appendAssumeCapacity(new_index);
-        return gz.indexToRef(new_index);
+        return indexToRef(new_index);
     }
 
     /// Note that this returns a `Zir.Inst.Index` not a ref.
@@ -9160,7 +9140,7 @@ const GenZir = struct {
         });
         gz.instructions.appendAssumeCapacity(new_index);
         astgen.string_bytes.appendSliceAssumeCapacity(mem.sliceAsBytes(limbs));
-        return gz.indexToRef(new_index);
+        return indexToRef(new_index);
     }
 
     fn addFloat(gz: *GenZir, number: f32, src_node: ast.Node.Index) !Zir.Inst.Ref {
@@ -9211,7 +9191,7 @@ const GenZir = struct {
             } },
         });
         gz.instructions.appendAssumeCapacity(new_index);
-        return gz.indexToRef(new_index);
+        return indexToRef(new_index);
     }
 
     fn addExtendedPayload(
@@ -9235,7 +9215,7 @@ const GenZir = struct {
             } },
         });
         gz.instructions.appendAssumeCapacity(new_index);
-        return gz.indexToRef(new_index);
+        return indexToRef(new_index);
     }
 
     fn addExtendedMultiOp(
@@ -9268,7 +9248,7 @@ const GenZir = struct {
         });
         gz.instructions.appendAssumeCapacity(new_index);
         astgen.appendRefsAssumeCapacity(operands);
-        return gz.indexToRef(new_index);
+        return indexToRef(new_index);
     }
 
     fn addArrayTypeSentinel(
@@ -9294,7 +9274,7 @@ const GenZir = struct {
             } },
         });
         gz.instructions.appendAssumeCapacity(new_index);
-        return gz.indexToRef(new_index);
+        return indexToRef(new_index);
     }
 
     fn addUnTok(
@@ -9453,7 +9433,7 @@ const GenZir = struct {
             } },
         });
         gz.instructions.appendAssumeCapacity(new_index);
-        return gz.indexToRef(new_index);
+        return indexToRef(new_index);
     }
 
     fn addAsm(
@@ -9511,7 +9491,7 @@ const GenZir = struct {
             } },
         });
         gz.instructions.appendAssumeCapacity(new_index);
-        return gz.indexToRef(new_index);
+        return indexToRef(new_index);
     }
 
     /// Note that this returns a `Zir.Inst.Index` not a ref.
@@ -9689,7 +9669,7 @@ const GenZir = struct {
     }
 
     fn add(gz: *GenZir, inst: Zir.Inst) !Zir.Inst.Ref {
-        return gz.indexToRef(try gz.addAsIndex(inst));
+        return indexToRef(try gz.addAsIndex(inst));
     }
 
     fn addAsIndex(gz: *GenZir, inst: Zir.Inst) !Zir.Inst.Index {
@@ -9835,4 +9815,19 @@ fn advanceSourceCursor(astgen: *AstGen, source: []const u8, end: usize) void {
     astgen.source_offset = i;
     astgen.source_line = line;
     astgen.source_column = column;
+}
+
+const ref_start_index: u32 = Zir.Inst.Ref.typed_value_map.len;
+
+fn indexToRef(inst: Zir.Inst.Index) Zir.Inst.Ref {
+    return @intToEnum(Zir.Inst.Ref, ref_start_index + inst);
+}
+
+fn refToIndex(inst: Zir.Inst.Ref) ?Zir.Inst.Index {
+    const ref_int = @enumToInt(inst);
+    if (ref_int >= ref_start_index) {
+        return ref_int - ref_start_index;
+    } else {
+        return null;
+    }
 }

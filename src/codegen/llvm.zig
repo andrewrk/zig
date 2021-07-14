@@ -9,7 +9,7 @@ const math = std.math;
 
 const Module = @import("../Module.zig");
 const TypedValue = @import("../TypedValue.zig");
-const ir = @import("../air.zig");
+const Air = @import("../Air.zig");
 const Inst = ir.Inst;
 
 const Value = @import("../value.zig").Value;
@@ -277,6 +277,9 @@ pub const Object = struct {
     }
 
     pub fn updateDecl(self: *Object, module: *Module, decl: *Module.Decl) !void {
+        const tracy = trace(@src());
+        defer tracy.end();
+
         var dg: DeclGen = .{
             .object = self,
             .module = module,

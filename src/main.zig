@@ -365,6 +365,7 @@ const usage_build_generic =
     \\    coff                    Common Object File Format (Windows)
     \\    macho                   macOS relocatables
     \\    spirv                   Standard, Portable Intermediate Representation V (SPIR-V)
+    \\    plan9                   Plan 9 from Bell Labs object format
     \\    hex    (planned)        Intel IHEX
     \\    raw    (planned)        Dump machine code directly
     \\  -dirafter [dir]           Add directory to AFTER include search path

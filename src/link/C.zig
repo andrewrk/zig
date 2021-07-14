@@ -2,14 +2,17 @@ const std = @import("std");
 const mem = std.mem;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+const fs = std.fs;
+
+const C = @This();
 const Module = @import("../Module.zig");
 const Compilation = @import("../Compilation.zig");
-const fs = std.fs;
 const codegen = @import("../codegen/c.zig");
 const link = @import("../link.zig");
 const trace = @import("../tracy.zig").trace;
-const C = @This();
 const Type = @import("../type.zig").Type;
+const Air = @import("../Air.zig");
+const Liveness = @import("../Liveness.zig");
 
 pub const base_tag: link.File.Tag = .c;
 pub const zig_h = @embedFile("C/zig.h");
@@ -95,10 +98,7 @@ fn deinitDecl(gpa: *Allocator, decl: *Module.Decl) void {
     decl.fn_link.c.typedefs.deinit(gpa);
 }
 
-pub fn updateDecl(self: *C, module: *Module, decl: *Module.Decl) !void {
-    const tracy = trace(@src());
-    defer tracy.end();
-
+pub fn finishUpdateDecl(self: *C, module: *Module, decl: *Module.Decl, air: Air, liveness: Liveness) !void {
     // Keep track of all decls so we can iterate over them on flush().
     _ = try self.decl_table.getOrPut(self.base.allocator, decl);
 
@@ -126,6 +126,8 @@ pub fn updateDecl(self: *C, module: *Module, decl: *Module.Decl) !void {
         .code = code.toManaged(module.gpa),
         .value_map = codegen.CValueMap.init(module.gpa),
         .indent_writer = undefined, // set later so we can get a pointer to object.code
+        .air = air,
+        .liveness = liveness,
     };
     object.indent_writer = .{ .underlying_writer = object.code.writer() };
     defer {
@@ -155,6 +157,20 @@ pub fn updateDecl(self: *C, module: *Module, decl: *Module.Decl) !void {
     // Free excess allocated memory for this Decl.
     fwd_decl.shrinkAndFree(module.gpa, fwd_decl.items.len);
     code.shrinkAndFree(module.gpa, code.items.len);
+}
+
+pub fn updateFunc(self: *C, module: *Module, func: *Module.Fn, air: Air, liveness: Liveness) !void {
+    const tracy = trace(@src());
+    defer tracy.end();
+
+    return self.finishUpdateDecl(module, func.owner_decl, air, liveness);
+}
+
+pub fn updateDecl(self: *C, module: *Module, decl: *Module.Decl) !void {
+    const tracy = trace(@src());
+    defer tracy.end();
+
+    return self.finishUpdateDecl(module, decl, undefined, undefined);
 }
 
 pub fn updateDeclLineNumber(self: *C, module: *Module, decl: *Module.Decl) !void {

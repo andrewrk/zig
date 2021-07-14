@@ -6,8 +6,6 @@ const log = std.log.scoped(.c);
 const link = @import("../link.zig");
 const Module = @import("../Module.zig");
 const Compilation = @import("../Compilation.zig");
-const ir = @import("../air.zig");
-const Inst = ir.Inst;
 const Value = @import("../value.zig").Value;
 const Type = @import("../type.zig").Type;
 const TypedValue = @import("../TypedValue.zig");
@@ -15,6 +13,8 @@ const C = link.File.C;
 const Decl = Module.Decl;
 const trace = @import("../tracy.zig").trace;
 const LazySrcLoc = Module.LazySrcLoc;
+const Air = @import("../Air.zig");
+const Liveness = @import("../Liveness.zig");
 
 const Mutability = enum { Const, Mut };
 
@@ -25,7 +25,7 @@ pub const CValue = union(enum) {
     /// Index into local_names, but take the address.
     local_ref: usize,
     /// A constant instruction, to be rendered inline.
-    constant: *Inst,
+    constant: Air.Inst.Index,
     /// Index into the parameters
     arg: usize,
     /// By-value
@@ -38,7 +38,7 @@ const BlockData = struct {
     result: CValue,
 };
 
-pub const CValueMap = std.AutoHashMap(*Inst, CValue);
+pub const CValueMap = std.AutoHashMap(Air.Inst.Index, CValue);
 pub const TypedefMap = std.ArrayHashMap(
     Type,
     struct { name: []const u8, rendered: []u8 },
@@ -94,16 +94,18 @@ pub fn fmtIdent(ident: []const u8) std.fmt.Formatter(formatIdent) {
 /// It is not available when generating .h file.
 pub const Object = struct {
     dg: DeclGen,
+    air: Air,
+    liveness: Liveness,
     gpa: *mem.Allocator,
     code: std.ArrayList(u8),
     value_map: CValueMap,
-    blocks: std.AutoHashMapUnmanaged(*ir.Inst.Block, BlockData) = .{},
+    blocks: std.AutoHashMapUnmanaged(Air.Inst.Index, BlockData) = .{},
     next_arg_index: usize = 0,
     next_local_index: usize = 0,
     next_block_index: usize = 0,
     indent_writer: IndentWriter(std.ArrayList(u8).Writer),
 
-    fn resolveInst(o: *Object, inst: *Inst) !CValue {
+    fn resolveInst(o: *Object, inst: Air.Inst.Index) !CValue {
         if (inst.value()) |_| {
             return CValue{ .constant = inst };
         }
@@ -131,7 +133,12 @@ pub const Object = struct {
             .none => unreachable,
             .local => |i| return w.print("t{d}", .{i}),
             .local_ref => |i| return w.print("&t{d}", .{i}),
-            .constant => |inst| return o.dg.renderValue(w, inst.ty, inst.value().?),
+            .constant => |inst| {
+                const ty_pl = o.air.instructions.items(.data)[inst].ty_pl;
+                const ty = o.air.getRefType(ty_pl.ty);
+                const val = o.air.values[ty_pl.payload];
+                return o.dg.renderValue(w, ty, val);
+            },
             .arg => |i| return w.print("a{d}", .{i}),
             .decl => |decl| return w.writeAll(mem.span(decl.name)),
             .decl_ref => |decl| return w.print("&{s}", .{decl.name}),
@@ -211,8 +218,9 @@ pub const DeclGen = struct {
     error_msg: ?*Module.ErrorMsg,
     typedefs: TypedefMap,
 
-    fn fail(dg: *DeclGen, src: LazySrcLoc, comptime format: []const u8, args: anytype) error{ AnalysisFail, OutOfMemory } {
+    fn fail(dg: *DeclGen, comptime format: []const u8, args: anytype) error{ AnalysisFail, OutOfMemory } {
         @setCold(true);
+        const src: LazySrcLoc = .{ .node_offset = 0 };
         const src_loc = src.toSrcLocWithDecl(dg.decl);
         dg.error_msg = try Module.ErrorMsg.create(dg.module.gpa, src_loc, format, args);
         return error.AnalysisFail;
@@ -228,7 +236,7 @@ pub const DeclGen = struct {
             // This should lower to 0xaa bytes in safe modes, and for unsafe modes should
             // lower to leaving variables uninitialized (that might need to be implemented
             // outside of this function).
-            return dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement renderValue undef", .{});
+            return dg.fail("TODO: C backend: implement renderValue undef", .{});
         }
         switch (t.zigTypeTag()) {
             .Int => {
@@ -438,7 +446,7 @@ pub const DeclGen = struct {
                 },
                 else => unreachable,
             },
-            else => |e| return dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement value {s}", .{
+            else => |e| return dg.fail("TODO: C backend: implement value {s}", .{
                 @tagName(e),
             }),
         }
@@ -517,14 +525,14 @@ pub const DeclGen = struct {
                                 break;
                             }
                         } else {
-                            return dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement integer types larger than 128 bits", .{});
+                            return dg.fail("TODO: C backend: implement integer types larger than 128 bits", .{});
                         }
                     },
                     else => unreachable,
                 }
             },
 
-            .Float => return dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement type Float", .{}),
+            .Float => return dg.fail("TODO: C backend: implement type Float", .{}),
 
             .Pointer => {
                 if (t.isSlice()) {
@@ -679,7 +687,7 @@ pub const DeclGen = struct {
 
                 try dg.renderType(w, int_tag_ty);
             },
-            .Union => return dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement type Union", .{}),
+            .Union => return dg.fail("TODO: C backend: implement type Union", .{}),
             .Fn => {
                 try dg.renderType(w, t.fnReturnType());
                 try w.writeAll(" (*)(");
@@ -702,10 +710,10 @@ pub const DeclGen = struct {
                 }
                 try w.writeByte(')');
             },
-            .Opaque => return dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement type Opaque", .{}),
-            .Frame => return dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement type Frame", .{}),
-            .AnyFrame => return dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement type AnyFrame", .{}),
-            .Vector => return dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement type Vector", .{}),
+            .Opaque => return dg.fail("TODO: C backend: implement type Opaque", .{}),
+            .Frame => return dg.fail("TODO: C backend: implement type Frame", .{}),
+            .AnyFrame => return dg.fail("TODO: C backend: implement type AnyFrame", .{}),
+            .Vector => return dg.fail("TODO: C backend: implement type Vector", .{}),
 
             .Null,
             .Undefined,
@@ -758,7 +766,8 @@ pub fn genDecl(o: *Object) !void {
             try o.dg.renderFunctionSignature(o.writer(), is_global);
 
             try o.writer().writeByte(' ');
-            try genBody(o, func.body);
+            const main_body = o.air.getMainBody();
+            try genBody(o, main_body);
 
             try o.indent_writer.insertNewline();
             return;
@@ -831,9 +840,9 @@ pub fn genHeader(dg: *DeclGen) error{ AnalysisFail, OutOfMemory }!void {
     }
 }
 
-pub fn genBody(o: *Object, body: ir.Body) error{ AnalysisFail, OutOfMemory }!void {
+fn genBody(o: *Object, body: []const Air.Inst.Index) error{ AnalysisFail, OutOfMemory }!void {
     const writer = o.writer();
-    if (body.instructions.len == 0) {
+    if (body.len == 0) {
         try writer.writeAll("{}");
         return;
     }
@@ -841,82 +850,85 @@ pub fn genBody(o: *Object, body: ir.Body) error{ AnalysisFail, OutOfMemory }!voi
     try writer.writeAll("{\n");
     o.indent_writer.pushIndent();
 
-    for (body.instructions) |inst| {
-        const result_value = switch (inst.tag) {
-            // TODO use a different strategy for add that communicates to the optimizer
-            // that wrapping is UB.
-            .add => try genBinOp(o, inst.castTag(.add).?, " + "),
-            .addwrap => try genWrapOp(o, inst.castTag(.addwrap).?, " + ", "addw_"),
-            // TODO use a different strategy for sub that communicates to the optimizer
-            // that wrapping is UB.
-            .sub => try genBinOp(o, inst.castTag(.sub).?, " - "),
-            .subwrap => try genWrapOp(o, inst.castTag(.subwrap).?, " - ", "subw_"),
-            // TODO use a different strategy for mul that communicates to the optimizer
-            // that wrapping is UB.
-            .mul => try genBinOp(o, inst.castTag(.sub).?, " * "),
-            .mulwrap => try genWrapOp(o, inst.castTag(.mulwrap).?, " * ", "mulw_"),
-            // TODO use a different strategy for div that communicates to the optimizer
-            // that wrapping is UB.
-            .div => try genBinOp(o, inst.castTag(.div).?, " / "),
+    const air_tags = o.air.instructions.items(.tag);
 
-            .constant => unreachable, // excluded from function bodies
-            .alloc => try genAlloc(o, inst.castTag(.alloc).?),
-            .arg => genArg(o),
-            .assembly => try genAsm(o, inst.castTag(.assembly).?),
-            .block => try genBlock(o, inst.castTag(.block).?),
-            .bitcast => try genBitcast(o, inst.castTag(.bitcast).?),
-            .breakpoint => try genBreakpoint(o, inst.castTag(.breakpoint).?),
-            .call => try genCall(o, inst.castTag(.call).?),
-            .cmp_eq => try genBinOp(o, inst.castTag(.cmp_eq).?, " == "),
-            .cmp_gt => try genBinOp(o, inst.castTag(.cmp_gt).?, " > "),
-            .cmp_gte => try genBinOp(o, inst.castTag(.cmp_gte).?, " >= "),
-            .cmp_lt => try genBinOp(o, inst.castTag(.cmp_lt).?, " < "),
-            .cmp_lte => try genBinOp(o, inst.castTag(.cmp_lte).?, " <= "),
-            .cmp_neq => try genBinOp(o, inst.castTag(.cmp_neq).?, " != "),
-            .dbg_stmt => try genDbgStmt(o, inst.castTag(.dbg_stmt).?),
-            .intcast => try genIntCast(o, inst.castTag(.intcast).?),
-            .load => try genLoad(o, inst.castTag(.load).?),
-            .ret => try genRet(o, inst.castTag(.ret).?),
-            .retvoid => try genRetVoid(o),
-            .store => try genStore(o, inst.castTag(.store).?),
-            .unreach => try genUnreach(o, inst.castTag(.unreach).?),
-            .loop => try genLoop(o, inst.castTag(.loop).?),
-            .condbr => try genCondBr(o, inst.castTag(.condbr).?),
-            .br => try genBr(o, inst.castTag(.br).?),
-            .br_void => try genBrVoid(o, inst.castTag(.br_void).?.block),
-            .switchbr => try genSwitchBr(o, inst.castTag(.switchbr).?),
-            // bool_and and bool_or are non-short-circuit operations
-            .bool_and => try genBinOp(o, inst.castTag(.bool_and).?, " & "),
-            .bool_or => try genBinOp(o, inst.castTag(.bool_or).?, " | "),
-            .bit_and => try genBinOp(o, inst.castTag(.bit_and).?, " & "),
-            .bit_or => try genBinOp(o, inst.castTag(.bit_or).?, " | "),
-            .xor => try genBinOp(o, inst.castTag(.xor).?, " ^ "),
-            .not => try genUnOp(o, inst.castTag(.not).?, "!"),
-            .is_null => try genIsNull(o, inst.castTag(.is_null).?),
-            .is_non_null => try genIsNull(o, inst.castTag(.is_non_null).?),
-            .is_null_ptr => try genIsNull(o, inst.castTag(.is_null_ptr).?),
-            .is_non_null_ptr => try genIsNull(o, inst.castTag(.is_non_null_ptr).?),
-            .wrap_optional => try genWrapOptional(o, inst.castTag(.wrap_optional).?),
-            .optional_payload => try genOptionalPayload(o, inst.castTag(.optional_payload).?),
-            .optional_payload_ptr => try genOptionalPayload(o, inst.castTag(.optional_payload_ptr).?),
-            .ref => try genRef(o, inst.castTag(.ref).?),
-            .struct_field_ptr => try genStructFieldPtr(o, inst.castTag(.struct_field_ptr).?),
+    for (body) |inst| {
+        const result_value = switch (air_tags[inst]) {
+            //// TODO use a different strategy for add that communicates to the optimizer
+            //// that wrapping is UB.
+            //.add => try genBinOp(o, inst.castTag(.add).?, " + "),
+            //.addwrap => try genWrapOp(o, inst.castTag(.addwrap).?, " + ", "addw_"),
+            //// TODO use a different strategy for sub that communicates to the optimizer
+            //// that wrapping is UB.
+            //.sub => try genBinOp(o, inst.castTag(.sub).?, " - "),
+            //.subwrap => try genWrapOp(o, inst.castTag(.subwrap).?, " - ", "subw_"),
+            //// TODO use a different strategy for mul that communicates to the optimizer
+            //// that wrapping is UB.
+            //.mul => try genBinOp(o, inst.castTag(.sub).?, " * "),
+            //.mulwrap => try genWrapOp(o, inst.castTag(.mulwrap).?, " * ", "mulw_"),
+            //// TODO use a different strategy for div that communicates to the optimizer
+            //// that wrapping is UB.
+            //.div => try genBinOp(o, inst.castTag(.div).?, " / "),
 
-            .is_err => try genIsErr(o, inst.castTag(.is_err).?, "", ".", "!="),
-            .is_non_err => try genIsErr(o, inst.castTag(.is_non_err).?, "", ".", "=="),
-            .is_err_ptr => try genIsErr(o, inst.castTag(.is_err_ptr).?, "*", "->", "!="),
-            .is_non_err_ptr => try genIsErr(o, inst.castTag(.is_non_err_ptr).?, "*", "->", "=="),
+            //.constant => unreachable, // excluded from function bodies
+            //.alloc => try genAlloc(o, inst.castTag(.alloc).?),
+            //.arg => genArg(o),
+            //.assembly => try genAsm(o, inst.castTag(.assembly).?),
+            //.block => try genBlock(o, inst.castTag(.block).?),
+            //.bitcast => try genBitcast(o, inst.castTag(.bitcast).?),
+            //.breakpoint => try genBreakpoint(o, inst.castTag(.breakpoint).?),
+            //.call => try genCall(o, inst.castTag(.call).?),
+            //.cmp_eq => try genBinOp(o, inst.castTag(.cmp_eq).?, " == "),
+            //.cmp_gt => try genBinOp(o, inst.castTag(.cmp_gt).?, " > "),
+            //.cmp_gte => try genBinOp(o, inst.castTag(.cmp_gte).?, " >= "),
+            //.cmp_lt => try genBinOp(o, inst.castTag(.cmp_lt).?, " < "),
+            //.cmp_lte => try genBinOp(o, inst.castTag(.cmp_lte).?, " <= "),
+            //.cmp_neq => try genBinOp(o, inst.castTag(.cmp_neq).?, " != "),
+            //.dbg_stmt => try genDbgStmt(o, inst.castTag(.dbg_stmt).?),
+            //.intcast => try genIntCast(o, inst.castTag(.intcast).?),
+            //.load => try genLoad(o, inst.castTag(.load).?),
+            //.ret => try genRet(o, inst.castTag(.ret).?),
+            //.retvoid => try genRetVoid(o),
+            //.store => try genStore(o, inst.castTag(.store).?),
+            //.unreach => try genUnreach(o, inst.castTag(.unreach).?),
+            //.loop => try genLoop(o, inst.castTag(.loop).?),
+            //.condbr => try genCondBr(o, inst.castTag(.condbr).?),
+            //.br => try genBr(o, inst.castTag(.br).?),
+            //.br_void => try genBrVoid(o, inst.castTag(.br_void).?.block),
+            //.switchbr => try genSwitchBr(o, inst.castTag(.switchbr).?),
+            //// bool_and and bool_or are non-short-circuit operations
+            //.bool_and => try genBinOp(o, inst.castTag(.bool_and).?, " & "),
+            //.bool_or => try genBinOp(o, inst.castTag(.bool_or).?, " | "),
+            //.bit_and => try genBinOp(o, inst.castTag(.bit_and).?, " & "),
+            //.bit_or => try genBinOp(o, inst.castTag(.bit_or).?, " | "),
+            //.xor => try genBinOp(o, inst.castTag(.xor).?, " ^ "),
+            //.not => try genUnOp(o, inst.castTag(.not).?, "!"),
+            //.is_null => try genIsNull(o, inst.castTag(.is_null).?),
+            //.is_non_null => try genIsNull(o, inst.castTag(.is_non_null).?),
+            //.is_null_ptr => try genIsNull(o, inst.castTag(.is_null_ptr).?),
+            //.is_non_null_ptr => try genIsNull(o, inst.castTag(.is_non_null_ptr).?),
+            //.wrap_optional => try genWrapOptional(o, inst.castTag(.wrap_optional).?),
+            //.optional_payload => try genOptionalPayload(o, inst.castTag(.optional_payload).?),
+            //.optional_payload_ptr => try genOptionalPayload(o, inst.castTag(.optional_payload_ptr).?),
+            //.ref => try genRef(o, inst.castTag(.ref).?),
+            //.struct_field_ptr => try genStructFieldPtr(o, inst.castTag(.struct_field_ptr).?),
 
-            .unwrap_errunion_payload => try genUnwrapErrUnionPay(o, inst.castTag(.unwrap_errunion_payload).?),
-            .unwrap_errunion_err => try genUnwrapErrUnionErr(o, inst.castTag(.unwrap_errunion_err).?),
-            .unwrap_errunion_payload_ptr => try genUnwrapErrUnionPay(o, inst.castTag(.unwrap_errunion_payload_ptr).?),
-            .unwrap_errunion_err_ptr => try genUnwrapErrUnionErr(o, inst.castTag(.unwrap_errunion_err_ptr).?),
-            .wrap_errunion_payload => try genWrapErrUnionPay(o, inst.castTag(.wrap_errunion_payload).?),
-            .wrap_errunion_err => try genWrapErrUnionErr(o, inst.castTag(.wrap_errunion_err).?),
-            .br_block_flat => return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement codegen for br_block_flat", .{}),
-            .ptrtoint => return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement codegen for ptrtoint", .{}),
-            .varptr => try genVarPtr(o, inst.castTag(.varptr).?),
-            .floatcast => return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement codegen for floatcast", .{}),
+            //.is_err => try genIsErr(o, inst.castTag(.is_err).?, "", ".", "!="),
+            //.is_non_err => try genIsErr(o, inst.castTag(.is_non_err).?, "", ".", "=="),
+            //.is_err_ptr => try genIsErr(o, inst.castTag(.is_err_ptr).?, "*", "->", "!="),
+            //.is_non_err_ptr => try genIsErr(o, inst.castTag(.is_non_err_ptr).?, "*", "->", "=="),
+
+            //.unwrap_errunion_payload => try genUnwrapErrUnionPay(o, inst.castTag(.unwrap_errunion_payload).?),
+            //.unwrap_errunion_err => try genUnwrapErrUnionErr(o, inst.castTag(.unwrap_errunion_err).?),
+            //.unwrap_errunion_payload_ptr => try genUnwrapErrUnionPay(o, inst.castTag(.unwrap_errunion_payload_ptr).?),
+            //.unwrap_errunion_err_ptr => try genUnwrapErrUnionErr(o, inst.castTag(.unwrap_errunion_err_ptr).?),
+            //.wrap_errunion_payload => try genWrapErrUnionPay(o, inst.castTag(.wrap_errunion_payload).?),
+            //.wrap_errunion_err => try genWrapErrUnionErr(o, inst.castTag(.wrap_errunion_err).?),
+            //.br_block_flat => return o.dg.fail("TODO: C backend: implement codegen for br_block_flat", .{}),
+            //.ptrtoint => return o.dg.fail("TODO: C backend: implement codegen for ptrtoint", .{}),
+            //.varptr => try genVarPtr(o, inst.castTag(.varptr).?),
+            //.floatcast => return o.dg.fail("TODO: C backend: implement codegen for floatcast", .{}),
+            else => return o.dg.fail("TODO: C backend: rework AIR memory layout", .{}),
         };
         switch (result_value) {
             .none => {},
@@ -1058,7 +1070,7 @@ fn genWrapOp(o: *Object, inst: *Inst.BinOp, str_op: [*:0]const u8, fn_op: [*:0]c
     }
 
     if (bits > 64) {
-        return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: genWrapOp for large integers", .{});
+        return o.dg.fail("TODO: C backend: genWrapOp for large integers", .{});
     }
 
     var min_buf: [80]u8 = undefined;
@@ -1225,7 +1237,7 @@ fn genCall(o: *Object, inst: *Inst.Call) !CValue {
         try writer.writeAll(");\n");
         return result_local;
     } else {
-        return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: implement function pointers", .{});
+        return o.dg.fail("TODO: C backend: implement function pointers", .{});
     }
 }
 
@@ -1388,13 +1400,13 @@ fn genAsm(o: *Object, as: *Inst.Assembly) !CValue {
             try o.writeCValue(writer, arg_c_value);
             try writer.writeAll(";\n");
         } else {
-            return o.dg.fail(.{ .node_offset = 0 }, "TODO non-explicit inline asm regs", .{});
+            return o.dg.fail("TODO non-explicit inline asm regs", .{});
         }
     }
     const volatile_string: []const u8 = if (as.is_volatile) "volatile " else "";
     try writer.print("__asm {s}(\"{s}\"", .{ volatile_string, as.asm_source });
     if (as.output_constraint) |_| {
-        return o.dg.fail(.{ .node_offset = 0 }, "TODO: CBE inline asm output", .{});
+        return o.dg.fail("TODO: CBE inline asm output", .{});
     }
     if (as.inputs.len > 0) {
         if (as.output_constraint == null) {
@@ -1419,7 +1431,7 @@ fn genAsm(o: *Object, as: *Inst.Assembly) !CValue {
     if (as.base.isUnused())
         return CValue.none;
 
-    return o.dg.fail(.{ .node_offset = 0 }, "TODO: C backend: inline asm expression result used", .{});
+    return o.dg.fail("TODO: C backend: inline asm expression result used", .{});
 }
 
 fn genIsNull(o: *Object, inst: *Inst.UnOp) !CValue {
